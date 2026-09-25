@@ -1,0 +1,20 @@
+{
+  "name": "code-check-eslint",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "The TypeScript/JavaScript half of code-check: eslint plus the coding-standards config, wrapped as one command.",
+  "bin": {
+    "code-check-eslint": "bin/code-check-eslint.mjs"
+  },
+  "files": [
+    "bin",
+    "eslint.config.mjs"
+  ],
+  "dependencies": {
+    "eslint": "10.9.1",
+    "eslint-plugin-jsdoc": "64.2.1",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.68.0"
+  }
+}

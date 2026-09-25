@@ -1,0 +1,18 @@
+[project]
+name = "code-check"
+version = "0.1.0"
+description = "code-check: the coding-standards linter for the FaultLine project — file/function line limits, docstring sections, and the ruff/eslint rules behind them."
+requires-python = ">=3.9"
+dependencies = ["ruff>=0.15.22"]
+
+[project.scripts]
+code-check = "standards_checks.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+# ruff.toml lives inside the package so it ships with it and is read from beside
+# the code that applies it, rather than from the repository being checked.
+packages = ["standards_checks"]

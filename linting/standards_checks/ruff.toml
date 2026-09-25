@@ -1,0 +1,50 @@
+# The coding-standards rules ruff can check, passed with --config so a repository's own ruff
+# config cannot override them. Line limits and docstring sections are checked by code-check.
+
+line-length = 100          # used by the formatter only; the E501 line-length lint is disabled below
+target-version = "py313"   # the FaultLine project runs on Python 3.13 (see pyproject.toml)
+
+[lint]
+select = [
+    "E", "F", "W",   # pycodestyle + pyflakes baseline (includes E722 bare-except)
+    "N",             # pep8-naming: snake_case funcs/vars, PascalCase classes -> rule 4
+    "D",             # pydocstyle: docstrings on modules, classes, functions -> rules 5, 6
+    "B",             # flake8-bugbear: likely bugs
+    "BLE",           # flake8-blind-except: no `except Exception:` catch-alls -> rule 7
+    "PLR0913",       # too many arguments -> "few parameters (<=5)"
+    "PLR0915",       # too many statements (function-size proxy) -> rule 1
+    "PLR0912",       # too many branches
+    "PLR2004",       # magic value in comparison -> rule 11 (partial)
+    "C90",           # mccabe complexity (nesting/branching proxy) -> "shallow nesting"
+    "SIM",           # flake8-simplify: flatten needless nesting
+]
+# Presence of docstrings is enforced on modules, classes and functions; their
+# *content* (what/how/inputs/outputs) is a judgement call left to the skill, not
+# the linter.
+ignore = [
+    "D203",  # wants a blank line before class docstrings; D211 forbids one, keep D211
+    "D213",  # wants the summary on line two; D212 wants it on line one, keep D212
+    "D209",  # wants closing quotes on their own line; rule 7's own example does not
+    "D403",  # wants the first word capitalised; docstrings may open with lowercase code
+    "D102",  # methods: an override is documented by the base method, not a duplicate docstring
+    "D105",  # magic methods: protocol dunders (__eq__/__hash__/__str__) are self-evident
+    "D107",  # __init__: the class docstring already documents construction, Args and How
+    "E501",  # line length is left to the formatter's target width, not a lint error
+]
+
+# Tests assert on literal, independently derived expected values and waive
+# docstring content (code-check waives the same files), so the docstring and
+# magic-value rules do not apply there.
+[lint.per-file-ignores]
+"tests/**" = ["D", "PLR2004"]
+
+[lint.pydocstyle]
+convention = "google"      # matches the Args:/Returns: docstring shape the standard uses
+
+[lint.pylint]
+max-args = 5               # rule: group extra params into an object/struct
+max-statements = 50        # rule 1, expressed in statements
+max-branches = 12
+
+[lint.mccabe]
+max-complexity = 8         # high complexity usually means deep nesting / too many jobs

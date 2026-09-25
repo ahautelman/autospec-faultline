@@ -104,11 +104,20 @@ convention.
 
 ### 6. Docstrings that explain what, how, and the shapes
 
-Every function gets a docstring with: **what** it does (one line), **inputs**
-(each arg, type, meaning), **how** it works (high-level approach, not
-line-by-line — so it won't rot), and **output** (return type + shape). The "how"
-is what makes it more than a signature restatement. Use the examples as the template
-for all docstrings, and keep them up to date — a stale docstring is worse than none.
+Every module, class, and function gets a docstring with: **what** it does (one
+line), **inputs** (each arg, type, meaning), **how** it works (high-level
+approach, not line-by-line — so it won't rot), and **output** (return type +
+shape). The "how" is what makes it more than a signature restatement. Use the
+examples as the template for all docstrings, and keep them up to date — a stale
+docstring is worse than none.
+
+**Presence** is machine-checked on modules, classes, and functions. Methods are
+exempt from the presence rule, because an override is documented by the method it
+overrides, language-protocol dunders (`__eq__`, `__hash__`, `__str__`,
+`__repr__`) are self-evident, and a class docstring already documents
+construction. Still write a method docstring when the behaviour isn't obvious
+from the name and the class docstring — and when you do, the content rules below
+apply in full.
 
 The three sections are **machine-checked** (see Linting), so mind exactly
 when each is required — a blank line must precede each `How:`/`Returns:` header
@@ -248,11 +257,13 @@ abstraction, integration/DRY). That split holds inside rule 6 too: the linter
 confirms the `Args:`/`How:`/`Returns:` sections are *there*, but whether the
 "how" is accurate and the args meaningfully described stays yours.
 
-The linter is the `code-check` command.
+The linter is the `code-check` command, shipped by the `linting/` folder in this
+repository. Install and layout are documented in `linting/README.md`.
+
 **Run it on the files you changed, after editing and before committing:**
 
 ```bash
-code-check path/to/changed.py path/to/other.ts
+code-check path/to/changed.py
 ```
 
 It reports two things:
@@ -262,16 +273,23 @@ It reports two things:
   sections. A violation here makes the exit code non-zero.
 - **ruff** (Python) and **eslint** (TypeScript/JS), run against the configs
   `code-check` ships, covering naming, docstring presence, param counts, magic
-  values and broad excepts.
+  values and broad excepts. FaultLine is Python-only, so the eslint half stays
+  idle unless TypeScript or JavaScript is added.
 
 How to use it:
 
 - **Consider using explicit paths.** These arguments are helpful if large parts
   of the codebase do not follow the coding standards. On the other hand, if
   the codebase already obeys the standards, then explicit paths can be skipped.
-- **Never install linting into the repository you are working on.** Do not add a
-  `ruff.toml`, `eslint.config.mjs`, or lint dependencies to it. The linter is
-  yours, not the repository's, and none of it belongs in the pull request.
+- **Don't add a second ruleset to the code being checked.** The ruleset lives in
+  `linting/` and travels with the command, so do not add a `ruff.toml`,
+  `eslint.config.mjs`, or lint dependencies to `faultline/` or the repo root.
+- **Know the waivers.** `tests/` drops the docstring-presence and magic-value
+  rules, and `autospec-original-code/` (the vendored AutoSpec reference
+  implementation) is skipped entirely.
 - **Do not silence a rule to make it pass.** If a rule genuinely cannot be met,
   use a narrow `# noqa: RULE` with a comment saying why, and note it in the pull
   request description.
+- **Changing the ruleset?** Edit `linting/standards_checks/ruff.toml` (Python) or
+  `linting/eslint/eslint.config.mjs` (TypeScript/JS), and update this skill in
+  the same change whenever it changes what the agent is asked to do.

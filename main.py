@@ -1,16 +1,24 @@
-# This is a sample Python script.
+"""Placeholder entry point for the FaultLine project.
 
-# Press ⌃R to execute it or replace it with your code.
-# Press Double ⇧ to search everywhere for classes, files, tool windows, actions, and settings.
-
-
-def print_hi(name):
-    # Use a breakpoint in the code line below to debug your script.
-    print(f'Hi, {name}')  # Press ⌘F8 to toggle the breakpoint.
+Currently a stub that proves the interpreter runs a runnable file; replace it
+with the benchmark driver once the fault-injection pipeline lands.
+"""
 
 
-# Press the green button in the gutter to run the script.
-if __name__ == '__main__':
-    print_hi('PyCharm')
+def print_hi(name: str) -> None:
+    """Print a greeting to stdout.
 
-# See PyCharm help at https://www.jetbrains.com/help/pycharm/
+    Args:
+        name: Name to greet.
+
+    How:
+        Formats a single greeting line and prints it.
+
+    Returns:
+        None: the greeting is written to stdout.
+    """
+    print(f"Hi, {name}")
+
+
+if __name__ == "__main__":
+    print_hi("FaultLine")
