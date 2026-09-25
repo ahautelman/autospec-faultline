@@ -1,0 +1,17 @@
+(pandagym) C:\Users\User\Desktop\Projects\gridworld>python main.py -n 1500 
+seed: 0
+exp_id: 0
+grid_size: 3
+Evaluating edge (start, mid)
+Current reach: 0.91, total_reach: 181, reward: -8.52±13.9:  65%|█████████████████████████▍             | 978/1500 [06:28<03:27,  2.51it/s] 
+Edge (start, mid) reach probability: 0.905
+Evaluating edge (mid, goal)
+Current reach: 0.58, total_reach: 117, reward: -13.48±17.1: 100%|█████████████████████████████████████| 1500/1500 [14:54<00:00,  1.68it/s] 
+Edge (mid, goal) reach probability: 0.585
+Edge (mid, goal) not realised: 0.585
+Evaluating edge (start, mid_r)
+Current reach: 0.91, total_reach: 181, reward: -10.09±16.7:  20%|███████▋                              | 305/1500 [01:29<05:50,  3.41it/s] 
+Edge (start, mid_r) reach probability: 0.905
+Evaluating edge (mid_r, goal)
+Current reach: 0.91, total_reach: 181, reward: -12.61±19.4:  21%|████████▏                             | 322/1500 [01:57<07:09,  2.74it/s] 
+Edge (mid_r, goal) reach probability: 0.905

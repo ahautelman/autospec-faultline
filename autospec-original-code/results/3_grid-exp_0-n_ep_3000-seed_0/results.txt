@@ -1,0 +1,23 @@
+
+seed: 0
+exp_id: 0
+grid_size: 3
+Evaluating edge (start, mid)
+Current reach: 0.90, total_reach: 901, reward: -6.00±18.4:  54%|████████████████████▋                 | 1634/3000 [09:47<08:11,  2.78it/s]
+Edge (start, mid) reach probability: 0.901
+Evaluating edge (mid, goal)
+Current reach: 0.39, total_reach: 392, reward: -13.18±14.6: 100%|█████████████████████████████████████| 3000/3000 [39:40<00:00,  1.26it/s]
+Edge (mid, goal) reach probability: 0.391
+Edge (mid, goal) not realised: 0.391
+Evaluating edge (start, mid_r)
+Current reach: 0.90, total_reach: 901, reward: -8.94±14.8:  73%|███████████████████████████▊          | 2197/3000 [20:02<07:19,  1.83it/s]
+Edge (start, mid_r) reach probability: 0.901
+Evaluating edge (mid_r, goal)
+Current reach: 0.79, total_reach: 787, reward: -8.07±32.1: 100%|██████████████████████████████████████| 3000/3000 [24:08<00:00,  2.07it/s]
+Edge (mid_r, goal) reach probability: 0.786
+Evaluating edge (start, mid_nr)
+Current reach: 0.90, total_reach: 901, reward: -6.95±18.6:  44%|████████████████▋                     | 1314/3000 [06:04<07:47,  3.60it/s]
+Edge (start, mid_nr) reach probability: 0.901
+Evaluating edge (mid_nr, mid_r)
+Current reach: 0.01, total_reach: 5, reward: -49.92±80.7: 100%|█████████████████████████████████████| 3000/3000 [1:30:40<00:00,  1.81s/it]
+Edge (mid_nr, mid_r) reach probability: 0.005

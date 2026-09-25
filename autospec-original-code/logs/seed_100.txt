@@ -1,0 +1,16 @@
+seed: 5
+exp_id: 0
+grid_size: 3
+Evaluating edge (start, mid)
+Edge (start, mid) reach probability: 0.901
+Evaluating edge (mid, goal)
+Edge (mid, goal) reach probability: 0.778
+Edge (mid, goal) not realised: 0.778
+Evaluating edge (start, mid_r)
+Edge (start, mid_r) reach probability: 0.901
+Evaluating edge (mid_r, goal)
+Edge (mid_r, goal) reach probability: 0.601
+Evaluating edge (start, mid_nr)
+Edge (start, mid_nr) reach probability: 0.0
+Evaluating edge (mid_nr, mid_r)
+Edge (mid_nr, mid_r) reach probability: 0.9846994535519126

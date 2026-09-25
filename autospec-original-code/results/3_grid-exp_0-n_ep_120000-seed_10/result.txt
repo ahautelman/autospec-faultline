@@ -1,0 +1,6 @@
+start, mid: 0.552
+mid, goal: 0.37166666666666665
+start, mid_r: 0.8456666666666667
+mid_r, goal: 0.836
+start, mid_nr: 0.842
+mid_nr, mid_r: 0.13

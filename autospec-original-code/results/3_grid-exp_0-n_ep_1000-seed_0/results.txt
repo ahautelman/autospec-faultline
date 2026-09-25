@@ -1,0 +1,23 @@
+(pandagym) C:\Users\User\Desktop\Projects\gridworld>python main.py -n 1000
+seed: 0
+exp_id: 0
+grid_size: 3
+Evaluating edge (start, mid)
+Current reach: 0.91, total_reach: 181, reward: -8.52±13.9:  98%|██████████████████████████████████████▏| 978/1000 [06:41<00:09,  2.44it/s]
+Edge (start, mid) reach probability: 0.905
+Evaluating edge (mid, goal)
+Current reach: 0.46, total_reach: 92, reward: -14.97±17.3: 100%|██████████████████████████████████████| 1000/1000 [10:18<00:00,  1.62it/s]
+Edge (mid, goal) reach probability: 0.46
+Edge (mid, goal) not realised: 0.46
+Evaluating edge (start, mid_r)
+Current reach: 0.91, total_reach: 181, reward: -11.18±15.7:  51%|████████████████▏               | 507/1000 [10:41:14<10:23:31, 75.89s/it] 
+Edge (start, mid_r) reach probability: 0.905
+Evaluating edge (mid_r, goal)
+Current reach: 0.47, total_reach: 94, reward: -17.20±37.1: 100%|██████████████████████████████████████| 1000/1000 [12:52<00:00,  1.29it/s] 
+Edge (mid_r, goal) reach probability: 0.465
+Evaluating edge (start, mid_nr)
+Current reach: 0.89, total_reach: 178, reward: -10.33±18.0: 100%|█████████████████████████████████████| 1000/1000 [06:59<00:00,  2.38it/s] 
+Edge (start, mid_nr) reach probability: 0.885
+Evaluating edge (mid_nr, mid_r)
+Current reach: 0.91, total_reach: 181, reward: -4.15±11.5:  27%|██████████▋                            | 274/1000 [01:12<03:12,  3.78it/s]
+Edge (mid_nr, mid_r) reach probability: 0.905
