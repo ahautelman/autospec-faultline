@@ -13,9 +13,10 @@ finds the **correct** repair, not only a repair that raises the success rate.
 - **How FaultLine tests this.** FaultLine injects a known fault into a SpectRL
   specification. It records the ground-truth repair. Then it measures how close
   AutoSpec gets to that repair.
-- **Status.** The SpectRL front end and the abstract-graph compiler are
-  complete and tested. The refinement loop and the 9-rooms environment are in
-  progress. See [Roadmap](#roadmap).
+- **Status.** The SpectRL front end, the abstract-graph compiler, the 9-rooms
+  environment, the learners, and the four refinement operators are complete and
+  tested. The Algorithm 1 loop, the 9-rooms validation, and the FaultLine
+  metrics are in progress. See [Roadmap](#roadmap).
 
 ## Goal and direction
 
@@ -57,12 +58,13 @@ code from scratch. The original authors' code stays in
 | Reference specification semantics | Done | [`semantics.py`](faultline/spectrl/semantics.py:1) |
 | Abstract graph and compiler | Done | [`faultline/graph/`](faultline/graph) |
 | Graph semantics and best-path product | Done | [`graph/semantics.py`](faultline/graph/semantics.py:1) |
-| 9-rooms environment and learners | In progress | planned |
-| The four refinement operators | In progress | planned |
+| 9-rooms layout and environment | Done | [`faultline/envs/`](faultline/envs) |
+| Learner protocol, tabular and PPO learners | Done | [`faultline/learners/`](faultline/learners) |
+| The four refinement operators | Done | [`faultline/refinement/`](faultline/refinement), [`faultline/geometry/`](faultline/geometry) |
 | Algorithm 1 loop | In progress | planned |
 | FaultLine metrics | In progress | planned |
 
-The test suite has 77 tests. All tests pass.
+The test suite has 138 tests. All tests pass.
 
 ## Requirements
 
@@ -71,8 +73,9 @@ The test suite has 77 tests. All tests pass.
 - [uv](https://docs.astral.sh/uv/) for the environment and the commands.
 - Node.js only if you want the TypeScript/JavaScript half of the linter.
 
-Core dependencies use NumPy only. The optional `interop` extra adds Gymnasium,
-Stable-Baselines3, and scikit-learn. The test suite does not need the extra.
+Core dependencies add NumPy and Gymnasium. The optional `interop` extra adds
+Stable-Baselines3 and scikit-learn for the real PPO learner. The test suite runs
+without the extra; the PPO learner test then skips.
 
 ## Install
 
@@ -175,7 +178,10 @@ Notes on the syntax:
 faultline/
   spectrl/            SpectRL language: predicates, AST, parser, printer, semantics
   graph/              abstract graph, compiler, graph semantics
+  envs/               9-rooms layout and the gymnasium environment
+  learners/           learner protocol, tabular learner, PPO learner
 tests/                unit tests for the packages above
+plans/                the implementation plan
 linting/              code-check, the custom linter
 autospec-original-code/   the original AutoSpec code, read only
 AutoSpec_research_paper.md   implementation notes on the AutoSpec paper
@@ -193,6 +199,10 @@ Each module maps to a section of
 | [`faultline/graph/abstract_graph.py`](faultline/graph/abstract_graph.py:1) | 2.3 | The graph `G = (V, E, beta, s, t)` |
 | [`faultline/graph/compiler.py`](faultline/graph/compiler.py:1) | 2.3 | Compiler from AST to graph |
 | [`faultline/graph/semantics.py`](faultline/graph/semantics.py:1) | 2.3, 6.2 | Trajectory satisfaction and best-path success |
+| [`faultline/envs/layout.py`](faultline/envs/layout.py:1) | 8 | The 3x3 room grid, walls, doors, and regions |
+| [`faultline/envs/rooms9.py`](faultline/envs/rooms9.py:1) | 8 | The point-mass environment with reach-avoid subgoals |
+| [`faultline/learners/tabular.py`](faultline/learners/tabular.py:1) | 3, 4 | The fast deterministic planner learner for tests |
+| [`faultline/learners/ppo.py`](faultline/learners/ppo.py:1) | 6.1 | The Stable-Baselines3 PPO edge learner |
 
 ## How the pipeline works
 
@@ -255,12 +265,9 @@ applies the intended repair.
 
 Work continues in this order.
 
-1. The 9-rooms environment and two learners. One learner is fast and
-   deterministic for tests. One learner is a real PPO learner.
-2. The four refinement operators, with soundness tests.
-3. The Algorithm 1 loop.
-4. End-to-end validation on five 9-rooms scenarios.
-5. FaultLine metrics: IoU, wIoU, and graph edit distance.
+1. The Algorithm 1 loop.
+2. End-to-end validation on five 9-rooms scenarios.
+3. FaultLine metrics: IoU, wIoU, and graph edit distance.
 
 If time runs short, drop RQ3 first, then RQ2. RQ1 is the core and stands alone.
 
@@ -297,9 +304,3 @@ If time runs short, drop RQ3 first, then RQ2. RQ1 is the core and stands alone.
   `A.F.vandenArendSchmidt@student.tudelft.nl`
 - Petre-Alexandru Hautelman, TU Delft,
   `p.a.hautelman-1@student.tudelft.nl`
-
-## GenAI use disclosure
-
-We used a coding assistant to draft the outline of this document and to write
-parts of the code. The problem statement, the methodology, the metric design,
-and the technical plan come from the project authors.

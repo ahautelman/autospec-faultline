@@ -6,15 +6,15 @@ readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
     "numpy>=2.0",
+    "gymnasium>=0.29",
 ]
 
 [project.optional-dependencies]
-# Real PPO edge learner and the gymnasium-based 9-rooms environment. Kept
-# optional so the parser, compiler, and refinement operators install and test
-# without the heavier RL stack. stable-baselines3 may lag the newest Python, so
-# the interop extra may need an interpreter the library supports.
+# Real PPO edge learner. Kept optional so the parser, compiler, environment, and
+# refinement operators install and test without the heavier RL stack.
+# stable-baselines3 may lag the newest Python, so the interop extra may need an
+# interpreter the library supports.
 interop = [
-    "gymnasium>=0.29",
     "stable-baselines3>=2.3",
     "scikit-learn>=1.4",
 ]

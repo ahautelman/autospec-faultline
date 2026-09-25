@@ -1,0 +1,81 @@
+"""Behavioural tests for the 9-rooms wall, door, and region model.
+
+These tests pin the wall-crossing rules with hand-picked coordinates: a move
+through a door passes, a move through a solid wall blocks, and a move along a
+wall is never blocked by that wall.
+"""
+
+from __future__ import annotations
+
+import numpy as np
+import pytest
+
+from faultline.envs import RoomsLayout, default_doors, default_regions
+from faultline.envs.layout import WORLD_SIZE
+
+
+def test_default_doors_are_the_four_corridor_walls():
+    """The default layout opens exactly the four corridor walls."""
+    assert set(default_doors()) == {("v", 0, 0), ("h", 1, 0), ("v", 1, 1), ("h", 2, 1)}
+
+
+def test_a_door_covers_only_its_centred_span():
+    """A corridor door is open at the wall centre and solid near the corner."""
+    layout = RoomsLayout()
+    assert layout.is_open(("v", 0, 0), 4.0) is True
+    assert layout.is_open(("v", 0, 0), 1.0) is False
+
+
+def test_a_wall_without_a_door_is_solid():
+    """A wall absent from the door map is solid everywhere."""
+    layout = RoomsLayout()
+    assert layout.is_open(("v", 0, 1), 4.0) is False
+
+
+def test_move_through_a_door_is_not_blocked():
+    """Crossing a wall at its door does not block the move."""
+    layout = RoomsLayout()
+    assert layout.segment_is_blocked([7.0, 4.0], [9.0, 4.0]) is False
+
+
+def test_move_through_a_solid_wall_is_blocked():
+    """Crossing a wall away from its door blocks the move."""
+    layout = RoomsLayout()
+    assert layout.segment_is_blocked([7.0, 1.0], [9.0, 1.0]) is True
+
+
+def test_move_along_a_wall_is_not_blocked():
+    """A move that stays on a wall line crosses no wall."""
+    layout = RoomsLayout()
+    assert layout.segment_is_blocked([8.0, 4.0], [8.0, 6.0]) is False
+
+
+def test_move_inside_a_room_is_not_blocked():
+    """A move that stays inside one room crosses no wall."""
+    layout = RoomsLayout()
+    assert layout.segment_is_blocked([2.0, 2.0], [3.0, 3.0]) is False
+
+
+@pytest.mark.parametrize(
+    "point,room",
+    [([2.0, 2.0], (0, 0)), ([10.0, 10.0], (1, 1)), ([22.0, 22.0], (2, 2)), ([23.9, 0.1], (2, 0))],
+)
+def test_room_of_maps_points_to_grid_rooms(point, room):
+    """A point maps to the room that contains it."""
+    assert RoomsLayout().room_of(point) == room
+
+
+def test_clamp_keeps_points_inside_the_world():
+    """Clamping pulls an outside point back to the world bounds."""
+    assert np.allclose(RoomsLayout().clamp([30.0, -5.0]), [WORLD_SIZE, 0.0])
+
+
+def test_default_regions_sit_inside_their_rooms():
+    """Each named region accepts its room centre and rejects the others."""
+    regions = default_regions()
+    assert regions["start"].evaluate([4.0, 4.0]) is True
+    assert regions["start"].evaluate([12.0, 12.0]) is False
+    assert regions["mid"].evaluate([12.0, 12.0]) is True
+    assert regions["mid"].evaluate([4.0, 4.0]) is False
+    assert regions["goal"].evaluate([20.0, 20.0]) is True
+    assert regions["goal"].evaluate([12.0, 12.0]) is False

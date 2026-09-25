@@ -30,7 +30,7 @@ _AND_PRECEDENCE = 1
 _OR_PRECEDENCE = 0
 
 
-def _select(state: State, dims: Dims) -> State:
+def select(state: State, dims: Dims) -> State:
     """Project a state vector onto the coordinates a predicate reads.
 
     Args:
@@ -165,7 +165,7 @@ class Box(Predicate):
             raise ValueError(f"Box lower {self.lower} exceeds upper {self.upper}")
 
     def evaluate(self, state: State) -> bool:
-        point = _select(state, self.dims)
+        point = select(state, self.dims)
         return bool(np.all(point >= self.lower) and np.all(point <= self.upper))
 
     def to_string(self) -> str:
@@ -210,7 +210,7 @@ class Disc(Predicate):
             raise ValueError(f"Disc radius must be non-negative, got {self.radius}")
 
     def evaluate(self, state: State) -> bool:
-        point = _select(state, self.dims)
+        point = select(state, self.dims)
         return bool(np.linalg.norm(point - self.center) <= self.radius)
 
     def to_string(self) -> str:
@@ -255,7 +255,7 @@ class HalfPlane(Predicate):
             raise ValueError("HalfPlane normal must be non-zero")
 
     def evaluate(self, state: State) -> bool:
-        point = _select(state, self.dims)
+        point = select(state, self.dims)
         return bool(float(self.normal @ point) >= self.offset)
 
     def to_string(self) -> str:
