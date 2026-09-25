@@ -14,9 +14,9 @@ finds the **correct** repair, not only a repair that raises the success rate.
   specification. It records the ground-truth repair. Then it measures how close
   AutoSpec gets to that repair.
 - **Status.** The SpectRL front end, the abstract-graph compiler, the 9-rooms
-  environment, the learners, and the four refinement operators are complete and
-  tested. The Algorithm 1 loop, the 9-rooms validation, and the FaultLine
-  metrics are in progress. See [Roadmap](#roadmap).
+  environment, the learners, the four refinement operators, and the Algorithm 1
+  loop are complete and tested. The 9-rooms validation and the FaultLine metrics
+  are in progress. See [Roadmap](#roadmap).
 
 ## Goal and direction
 
@@ -61,10 +61,10 @@ code from scratch. The original authors' code stays in
 | 9-rooms layout and environment | Done | [`faultline/envs/`](faultline/envs) |
 | Learner protocol, tabular and PPO learners | Done | [`faultline/learners/`](faultline/learners) |
 | The four refinement operators | Done | [`faultline/refinement/`](faultline/refinement), [`faultline/geometry/`](faultline/geometry) |
-| Algorithm 1 loop | In progress | planned |
+| Algorithm 1 loop | Done | [`refinement/loop.py`](faultline/refinement/loop.py:1) |
 | FaultLine metrics | In progress | planned |
 
-The test suite has 138 tests. All tests pass.
+The test suite has 147 tests. All tests pass.
 
 ## Requirements
 
@@ -203,6 +203,8 @@ Each module maps to a section of
 | [`faultline/envs/rooms9.py`](faultline/envs/rooms9.py:1) | 8 | The point-mass environment with reach-avoid subgoals |
 | [`faultline/learners/tabular.py`](faultline/learners/tabular.py:1) | 3, 4 | The fast deterministic planner learner for tests |
 | [`faultline/learners/ppo.py`](faultline/learners/ppo.py:1) | 6.1 | The Stable-Baselines3 PPO edge learner |
+| [`faultline/refinement/operators.py`](faultline/refinement/operators.py:1) | 4 | The four refinement operators |
+| [`faultline/refinement/loop.py`](faultline/refinement/loop.py:1) | 3 | The Algorithm 1 refinement loop, config, and run record |
 
 ## How the pipeline works
 
@@ -265,9 +267,8 @@ applies the intended repair.
 
 Work continues in this order.
 
-1. The Algorithm 1 loop.
-2. End-to-end validation on five 9-rooms scenarios.
-3. FaultLine metrics: IoU, wIoU, and graph edit distance.
+1. End-to-end validation on five 9-rooms scenarios.
+2. FaultLine metrics: IoU, wIoU, and graph edit distance.
 
 If time runs short, drop RQ3 first, then RQ2. RQ1 is the core and stands alone.
 
