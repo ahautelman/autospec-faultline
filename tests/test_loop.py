@@ -15,8 +15,14 @@ from faultline.envs import Rooms9, default_regions
 from faultline.graph import AbstractGraph
 from faultline.learners import TabularLearner
 from faultline.refinement import AutoSpecConfig, run_autospec
+from faultline.refinement.loop import _EdgeTrainer
 from faultline.spectrl.predicates import Universe
-from tests.loop_support import ScriptedLearner, blocked_rollouts, refinable_rollouts
+from tests.loop_support import (
+    ScriptedLearner,
+    SeedDependentLearner,
+    blocked_rollouts,
+    refinable_rollouts,
+)
 from tests.refinement_support import GOAL, MID, SAFE, START, chain_graph, two_parent_graph
 
 THRESHOLD = 0.9
@@ -113,10 +119,55 @@ def test_relearns_only_edges_the_edit_changed():
     run = run_autospec(graph, None, learner, AutoSpecConfig(threshold=THRESHOLD))
 
     assert run.steps[0].operator == "seq"
-    assert learner.count("mid", "goal") == 1
+    # The touched edge is trained once at the first pass, then replaced by the
+    # two replacement edges, which are trained once each.
     assert learner.count("start", "mid") == 1
     assert learner.count("start", "seq1") == 1
     assert learner.count("seq1", "mid") == 1
+    # The untouched edge is trained once and never retrained by the commit.
+    assert learner.count("mid", "goal") == 1
+    assert len(learner.train_calls) == len(set(learner.train_calls))
+
+
+def test_align_reuses_cached_trainings_and_only_trains_new_edges():
+    graph, _edge = chain_graph()
+    learner = ScriptedLearner(lambda edge: 0.5, blocked_rollouts)
+    trainer = _EdgeTrainer(None, learner, AutoSpecConfig(threshold=THRESHOLD))
+
+    cache = trainer.align(graph, {})
+    assert learner.train_calls == [("start", "mid"), ("mid", "goal")]
+
+    trainer.align(graph, cache)
+    assert learner.train_calls == [("start", "mid"), ("mid", "goal")]
+
+    extra = graph.fresh_vertex("extra", MID)
+    graph.add_edge(graph.source, extra, SAFE)
+    trainer.align(graph, cache)
+
+    assert learner.count("start", "mid") == 1
+    assert learner.count("mid", "goal") == 1
+    assert learner.count("start", "extra1") == 1
+
+
+def test_run_threads_the_config_seed_into_training():
+    graph, _edge = chain_graph()
+    learner = SeedDependentLearner(blocked_rollouts)
+    config = AutoSpecConfig(threshold=THRESHOLD, seed=17)
+
+    run_autospec(graph, None, learner, config)
+
+    assert learner.train_seeds == [17, 17]
+
+
+def test_same_seed_makes_a_stochastic_learner_reproducible():
+    config = AutoSpecConfig(threshold=THRESHOLD, seed=23)
+
+    first_graph, _ = chain_graph()
+    first = run_autospec(first_graph, None, SeedDependentLearner(blocked_rollouts), config)
+    second_graph, _ = chain_graph()
+    second = run_autospec(second_graph, None, SeedDependentLearner(blocked_rollouts), config)
+
+    assert first.edge_success == second.edge_success
 
 
 def test_commits_or_refine_when_earlier_operators_refuse():

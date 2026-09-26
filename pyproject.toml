@@ -21,8 +21,18 @@ interop = [
 dev = [
     "pytest>=8.0",
 ]
+# Reporting extras for the 9-rooms run: plotting only, so the library and the
+# default test suite stay free of a plotting dependency.
+reports = [
+    "matplotlib>=3.8",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
-addopts = "-q"
+# The 9-rooms PPO acceptance suite is slow and needs the interop extra, so the
+# default run excludes it; select it with `pytest -m slow`.
+addopts = "-q -m 'not slow'"
+markers = [
+    "slow: trains PPO edge policies; run with `pytest -m slow` and the interop extra",
+]

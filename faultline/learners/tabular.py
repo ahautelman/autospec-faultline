@@ -67,7 +67,9 @@ class TabularLearner:
         self.cell_size = float(cell_size)
         self.tolerance = float(tolerance)
 
-    def train_edge(self, env: Any, edge: Edge, budget: int = DEFAULT_BUDGET) -> TabularPolicy:
+    def train_edge(
+        self, env: Any, edge: Edge, budget: int = DEFAULT_BUDGET, seed: int | None = None
+    ) -> TabularPolicy:
         """Return a planner handle for one edge.
 
         Args:
@@ -75,6 +77,9 @@ class TabularLearner:
             edge: The reach-avoid edge to learn.
             budget: Training budget. The planner ignores it because it does not
                 fit parameters.
+            seed: Accepted for interface compatibility; the planner is
+                deterministic, so training has no randomness to seed and the
+                value is unused.
 
         How:
             Records the planner settings on a handle. No learning happens here.

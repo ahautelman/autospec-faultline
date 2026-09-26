@@ -15,6 +15,7 @@ Module to paper-section map (see ``AutoSpec_research_paper.md``):
     refinement/ -> sections 3-4 (Algorithm 1 loop and the four operators)
     envs/       -> section 8    (the 9-rooms environment)
     learners/   -> section 6    (pluggable spec-guided RL backends)
+    scenarios/  -> sections 8, 11 (the 9-rooms validation scenarios and runner)
     metrics/    -> README       (FaultLine IoU / wIoU / GED for RQ1)
 """
 

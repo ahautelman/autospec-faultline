@@ -12,7 +12,7 @@ import math
 import numpy as np
 
 from faultline.envs import Rooms9, RoomsLayout
-from faultline.spectrl.predicates import Box, Universe
+from faultline.spectrl.predicates import And, Box, Disc, Universe
 
 # A layout with no doors: every internal wall is solid. It keeps moves inside
 # one room, so the tests isolate the dynamics from the door model.
@@ -117,3 +117,18 @@ def test_reset_with_the_same_seed_repeats_the_start():
     first, _ = env.reset(seed=7)
     second, _ = env.reset(seed=7)
     assert np.allclose(first, second)
+
+
+def test_reset_samples_a_goal_inside_a_small_composite_region():
+    """A reset samples the goal inside a small box-and-disc region.
+
+    Rejection sampling over the whole world almost never hits the disc, so this
+    pins the bounds-aware sampling path that refined regions rely on.
+    """
+    env = Rooms9(layout=SOLID_LAYOUT)
+    target = And(Box((1.0, 1.0), (3.0, 3.0)), Disc((2.0, 2.0), 0.6))
+    env.set_abstract_states(Box((1.0, 1.0), (1.5, 1.5)), target, Universe())
+
+    for seed in range(20):
+        env.reset(seed=seed)
+        assert target.evaluate(env.current_goal) is True

@@ -112,7 +112,7 @@ class EdgeEstimate:
 class Learner(Protocol):
     """A spec-guided RL backend that trains and evaluates one edge policy."""
 
-    def train_edge(self, env: Any, edge: Edge, budget: int) -> Any:
+    def train_edge(self, env: Any, edge: Edge, budget: int, seed: int | None = None) -> Any:
         """Train a policy for one edge and return a handle for it.
 
         Args:
@@ -120,11 +120,16 @@ class Learner(Protocol):
                 the gymnasium ``reset`` and ``step`` methods.
             edge: The reach-avoid edge to learn.
             budget: Training budget, for example environment steps.
+            seed: Base RNG seed for training, so a run is reproducible; ``None``
+                (the default) leaves the implementation's own default in place.
 
         How:
             Implementations set the edge as the environment's subgoal, fit their
             policy, and return an opaque handle. The caller passes that handle
-            back to :meth:`estimate_reach` without inspecting it.
+            back to :meth:`estimate_reach` without inspecting it. An
+            implementation whose training is stochastic must derive that
+            randomness from ``seed`` when it is provided, so two calls with the
+            same seed and inputs yield the same policy.
 
         Returns:
             A backend-specific policy handle, passed back to ``estimate_reach``.

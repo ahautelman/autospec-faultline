@@ -14,9 +14,9 @@ finds the **correct** repair, not only a repair that raises the success rate.
   specification. It records the ground-truth repair. Then it measures how close
   AutoSpec gets to that repair.
 - **Status.** The SpectRL front end, the abstract-graph compiler, the 9-rooms
-  environment, the learners, the four refinement operators, and the Algorithm 1
-  loop are complete and tested. The 9-rooms validation and the FaultLine metrics
-  are in progress. See [Roadmap](#roadmap).
+  environment, the learners, the four refinement operators, the Algorithm 1 loop,
+  and the five-scenario 9-rooms validation are complete and tested. The FaultLine
+  metrics are in progress. See [Roadmap](#roadmap).
 
 ## Goal and direction
 
@@ -62,9 +62,12 @@ code from scratch. The original authors' code stays in
 | Learner protocol, tabular and PPO learners | Done | [`faultline/learners/`](faultline/learners) |
 | The four refinement operators | Done | [`faultline/refinement/`](faultline/refinement), [`faultline/geometry/`](faultline/geometry) |
 | Algorithm 1 loop | Done | [`refinement/loop.py`](faultline/refinement/loop.py:1) |
+| 9-rooms validation scenarios and runner | Done | [`faultline/scenarios/`](faultline/scenarios) |
+| 9-rooms PPO reporting run | Done | [`faultline/experiments/`](faultline/experiments) |
 | FaultLine metrics | In progress | planned |
 
-The test suite has 147 tests. All tests pass.
+The default test suite has 185 tests and all pass. Five further PPO acceptance
+tests run under the `slow` marker; see [Run the tests](#run-the-tests).
 
 ## Requirements
 
@@ -74,8 +77,9 @@ The test suite has 147 tests. All tests pass.
 - Node.js only if you want the TypeScript/JavaScript half of the linter.
 
 Core dependencies add NumPy and Gymnasium. The optional `interop` extra adds
-Stable-Baselines3 and scikit-learn for the real PPO learner. The test suite runs
-without the extra; the PPO learner test then skips.
+Stable-Baselines3 and scikit-learn for the real PPO learner, and the optional
+`reports` extra adds matplotlib for the 9-rooms report figures. The test suite
+runs without either extra; the PPO learner test and the figure test then skip.
 
 ## Install
 
@@ -85,10 +89,11 @@ Run this command from the project root:
 uv sync --extra dev
 ```
 
-Add the `interop` extra when you work on the environment or the PPO learner:
+Add the `interop` extra when you work on the environment or the PPO learner, and
+the `reports` extra when you run the 9-rooms report:
 
 ```bash
-uv sync --extra dev --extra interop
+uv sync --extra dev --extra interop --extra reports
 ```
 
 ## Run the tests
@@ -111,12 +116,43 @@ Run one test by name:
 uv run --extra dev pytest tests/test_parser.py -k round_trip
 ```
 
+The 9-rooms PPO acceptance tests train a policy per edge, so they are marked
+`slow` and excluded from the default run. Add the `interop` extra and select them
+explicitly:
+
+```bash
+uv run --extra dev --extra interop pytest -m slow
+```
+
 The centrepiece test is
 [`test_compiled_graph_agrees_with_spec_semantics`](tests/test_compiler.py:47).
 It checks every trajectory in a small state space. For each trajectory, the
 compiled graph must accept the trajectory if and only if the specification
 semantics accept it. This is the paper property `zeta models phi` if and only
 if `zeta models G`.
+
+## Run the 9-rooms report
+
+[`faultline/experiments/rooms9_report.py`](faultline/experiments/rooms9_report.py:1)
+is a runnable pipeline that trains the five 9-rooms scenarios with PPO and writes
+comparison figures against the paper's numbers:
+
+```bash
+uv run --extra interop --extra reports python -m faultline.experiments.rooms9_report
+```
+
+Defaults match the paper: a 200k-step budget for every scenario, 1000 evaluation
+rollouts, checkpoints every 10k steps, and seeds 0-4. Training is expensive, so
+`--budget`, `--rollouts`, `--interval`, `--seeds`, `--steps`, and `--output` are
+flags, and `--plot-only` redraws the figures from the persisted data without
+retraining.
+
+The run writes raw records to `reports/rooms9/data/` (`step1_<scenario>.json`
+checkpoint series and `step2_<scenario>.json` per-seed summaries) and figures to
+`reports/rooms9/`: a reference comparison at the 80k checkpoint, per-scenario
+learning curves over 0..200k, a geometric overlay of each operator's inputs and
+its refined region, and per-seed spread bars, each per scenario plus a combined
+figure.
 
 ## Run the linter
 
@@ -178,10 +214,15 @@ Notes on the syntax:
 faultline/
   spectrl/            SpectRL language: predicates, AST, parser, printer, semantics
   graph/              abstract graph, compiler, graph semantics
+  geometry/           convex hulls, region algebra, and half-plane partitioning
   envs/               9-rooms layout and the gymnasium environment
   learners/           learner protocol, tabular learner, PPO learner
+  refinement/         the Algorithm 1 loop and the four refinement operators
+  scenarios/          the five 9-rooms validation scenarios and the runner
+  experiments/        the runnable 9-rooms report: checkpointed training and figures
 tests/                unit tests for the packages above
 plans/                the implementation plan
+reports/              generated report artifacts (figures and raw series)
 linting/              code-check, the custom linter
 autospec-original-code/   the original AutoSpec code, read only
 AutoSpec_research_paper.md   implementation notes on the AutoSpec paper
@@ -205,6 +246,10 @@ Each module maps to a section of
 | [`faultline/learners/ppo.py`](faultline/learners/ppo.py:1) | 6.1 | The Stable-Baselines3 PPO edge learner |
 | [`faultline/refinement/operators.py`](faultline/refinement/operators.py:1) | 4 | The four refinement operators |
 | [`faultline/refinement/loop.py`](faultline/refinement/loop.py:1) | 3 | The Algorithm 1 refinement loop, config, and run record |
+| [`faultline/scenarios/catalogue.py`](faultline/scenarios/catalogue.py:1) | 8, 11 | The five 9-rooms validation scenarios |
+| [`faultline/scenarios/runner.py`](faultline/scenarios/runner.py:1) | 3, 11 | The scenario runner and its per-edge report |
+| [`faultline/experiments/pipeline.py`](faultline/experiments/pipeline.py:1) | 3, 11 | The single-seed and multi-seed checkpointed pipeline |
+| [`faultline/experiments/figures.py`](faultline/experiments/figures.py:1) | 11 | Comparison, learning-curve, and spread figures |
 
 ## How the pipeline works
 
@@ -267,8 +312,8 @@ applies the intended repair.
 
 Work continues in this order.
 
-1. End-to-end validation on five 9-rooms scenarios.
-2. FaultLine metrics: IoU, wIoU, and graph edit distance.
+1. FaultLine metrics: IoU, wIoU, and graph edit distance.
+2. Fault-injection helpers and the ground-truth repair encoder.
 
 If time runs short, drop RQ3 first, then RQ2. RQ1 is the core and stands alone.
 

@@ -11,9 +11,10 @@ paper's train-scan-estimate-refine cycle. One run:
    edges the edit changed, then continues with the remaining edges;
 5. reports the repaired graph, the per-edge success, and the best-path product.
 
-Determinism follows from three fixed choices: the topological scan order, the
-operator order, and the seeded estimates. The same inputs therefore produce the
-same :class:`AutoSpecRun`.
+Determinism follows from four fixed choices: the topological scan order, the
+operator order, the seeded training calls, and the seeded estimates. The same
+inputs therefore produce the same :class:`AutoSpecRun` even when a learner uses
+randomness internally.
 """
 
 from __future__ import annotations
@@ -54,7 +55,8 @@ class AutoSpecConfig:
         budget: Training budget per edge, in environment steps.
         n_rollouts: Episodes per edge success estimate (paper section 6.2).
         avoid_tail_length: Trailing states AvoidRefine blocks (paper section 6.2).
-        seed: Base RNG seed for every estimate, so a run is reproducible.
+        seed: Base RNG seed threaded into every training call and estimate, so a
+            run is reproducible even when a learner trains stochastically.
 
     How:
         Holds the loop's hyperparameters. The defaults follow the paper: the
@@ -122,6 +124,8 @@ class AutoSpecRun:
         graph: The repaired abstract graph.
         config: The configuration the run used.
         steps: One record per weak edge examined, in scan order.
+        initial_edge_success: Per-edge estimates before any refinement, in the
+            input graph's edge order.
         edge_success: Final per-edge success estimates, in graph edge order.
         best_path_success: Whole-graph success, the best start-to-target path's
             probability product (paper section 6.2).
@@ -134,6 +138,7 @@ class AutoSpecRun:
     graph: AbstractGraph
     config: AutoSpecConfig
     steps: tuple[RefinementStep, ...]
+    initial_edge_success: tuple[EdgeSuccess, ...]
     edge_success: tuple[EdgeSuccess, ...]
     best_path_success: float
 
@@ -182,13 +187,17 @@ class _EdgeTrainer:
             edge: The edge to learn.
 
         How:
-            Calls the learner's ``train_edge`` for the configured budget, then
-            ``estimate_reach`` for the configured rollouts and seed.
+            Calls the learner's ``train_edge`` for the configured budget and
+            seed, then ``estimate_reach`` for the configured rollouts and the
+            same seed. Passing the seed to training is what makes a stochastic
+            learner reproducible across two runs of the loop.
 
         Returns:
             The policy handle and its estimate.
         """
-        policy = self.learner.train_edge(self.env, edge, self.config.budget)
+        policy = self.learner.train_edge(
+            self.env, edge, self.config.budget, seed=self.config.seed
+        )
         estimate = self.learner.estimate_reach(
             self.env, edge, policy, self.config.n_rollouts, self.config.seed
         )
@@ -281,6 +290,14 @@ def run_autospec(
     trainer = _EdgeTrainer(env, learner, active_config)
     working = graph.copy()
     cache = trainer.align(working, {})
+    initial_edge_success = tuple(
+        EdgeSuccess(
+            edge.source.name,
+            edge.target.name,
+            cache[_edge_key(edge)].estimate.success_probability,
+        )
+        for edge in working.edges
+    )
     steps = []
     for template in _ordered_edges(working):
         edge = _locate(working, template.source.name, template.target.name)
@@ -299,11 +316,12 @@ def run_autospec(
         for edge in working.edges
     )
     return AutoSpecRun(
-        working,
-        active_config,
-        tuple(steps),
-        edge_success,
-        best_path_product(working, probabilities),
+        graph=working,
+        config=active_config,
+        steps=tuple(steps),
+        initial_edge_success=initial_edge_success,
+        edge_success=edge_success,
+        best_path_success=best_path_product(working, probabilities),
     )
 
 

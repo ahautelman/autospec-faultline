@@ -47,6 +47,8 @@ class PPOEdgeLearner:
             loop calls :meth:`train_edge` with an explicit value.
         recipe: Optional overrides for the Stable-Baselines3 PPO settings,
             merged over :data:`DEFAULT_RECIPE`.
+        seed: Optional RNG seed for training, so a run is reproducible; ``None``
+            (the default) leaves Stable-Baselines3 unseeded.
 
     How:
         Implements the :class:`~faultline.learners.base.Learner` protocol. The
@@ -59,12 +61,21 @@ class PPOEdgeLearner:
         device: str = DEVICE,
         budget: int = DEFAULT_BUDGET,
         recipe: dict[str, Any] | None = None,
+        seed: int | None = None,
     ) -> None:
         self.device = device
         self.budget = int(budget)
         self.recipe = {**DEFAULT_RECIPE, **(recipe or {})}
+        self.seed = seed
 
-    def train_edge(self, env: Any, edge: Edge, budget: int | None = None) -> Any:
+    def train_edge(
+        self,
+        env: Any,
+        edge: Edge,
+        budget: int | None = None,
+        callback: Any | None = None,
+        seed: int | None = None,
+    ) -> Any:
         """Train a PPO policy for one edge.
 
         Args:
@@ -73,10 +84,18 @@ class PPOEdgeLearner:
             edge: The reach-avoid edge to learn.
             budget: Training budget in environment steps; defaults to the
                 learner's budget.
+            callback: Optional Stable-Baselines3 callback, for example a periodic
+                checkpoint that evaluates the policy mid-training; ``None`` trains
+                without one.
+            seed: RNG seed for this training call; overrides the learner's own
+                seed. ``None`` falls back to the learner's seed, which itself
+                defaults to ``None`` (unseeded). Threading the run seed through
+                here is what makes a stochastic learner reproducible.
 
         How:
             Sets the edge as the environment's subgoal, builds a PPO model with
-            the section 6.1 recipe, and trains it for the budget.
+            the section 6.1 recipe seeded from this call, and trains it for the
+            budget, threading any callback through to ``model.learn``.
 
         Returns:
             The trained Stable-Baselines3 PPO model.
@@ -87,8 +106,15 @@ class PPOEdgeLearner:
         from stable_baselines3 import PPO
 
         env.set_abstract_states(edge.source.region, edge.target.region, edge.safe)
-        model = PPO("MlpPolicy", env, device=self.device, verbose=0, **self.recipe)
-        model.learn(total_timesteps=budget if budget is not None else self.budget)
+        model = PPO(
+            "MlpPolicy",
+            env,
+            device=self.device,
+            verbose=0,
+            seed=seed if seed is not None else self.seed,
+            **self.recipe,
+        )
+        model.learn(total_timesteps=budget if budget is not None else self.budget, callback=callback)
         return model
 
     def estimate_reach(

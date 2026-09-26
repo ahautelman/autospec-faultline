@@ -9,6 +9,7 @@ assertions.
 
 from __future__ import annotations
 
+import random
 from dataclasses import dataclass
 
 from faultline.learners import EdgeEstimate
@@ -50,10 +51,12 @@ class ScriptedLearner:
         self._probability = probability
         self._rollouts = rollouts
         self.train_calls: list[tuple[str, str]] = []
+        self.train_seeds: list[int | None] = []
 
-    def train_edge(self, env, edge, budget=0) -> ScriptedPolicy:
-        """Record the edge and return a naming handle."""
+    def train_edge(self, env, edge, budget=0, seed=None) -> ScriptedPolicy:
+        """Record the edge and its seed, then return a naming handle."""
         self.train_calls.append((edge.source.name, edge.target.name))
+        self.train_seeds.append(seed)
         return ScriptedPolicy(edge.source.name, edge.target.name)
 
     def estimate_reach(self, env, edge, policy, n_rollouts, seed=0) -> EdgeEstimate:
@@ -63,6 +66,35 @@ class ScriptedLearner:
     def count(self, source: str, target: str) -> int:
         """Return how many times an edge with these endpoints was trained."""
         return self.train_calls.count((source, target))
+
+
+class SeedDependentLearner:
+    """A learner whose trained policy depends on the seed it receives.
+
+    Args:
+        rollouts: Maps an edge to the rollouts to report from ``estimate_reach``.
+
+    How:
+        Implements the learner protocol with no real training. ``train_edge``
+        draws a success probability from an RNG seeded by its ``seed`` argument
+        and records every seed it saw; ``estimate_reach`` reports that probability
+        with the canned rollouts. Identical seeds therefore give identical runs,
+        and a missing seed draws fresh entropy, so the loop's determinism test can
+        tell whether the seed actually reached training.
+    """
+
+    def __init__(self, rollouts):
+        self._rollouts = rollouts
+        self.train_seeds: list[int | None] = []
+
+    def train_edge(self, env, edge, budget=0, seed=None) -> float:
+        """Draw a success probability from a seed-dependent RNG."""
+        self.train_seeds.append(seed)
+        return random.Random(seed).random()
+
+    def estimate_reach(self, env, edge, policy, n_rollouts, seed=0) -> EdgeEstimate:
+        """Report the trained probability with the canned rollouts."""
+        return EdgeEstimate(policy, tuple(self._rollouts(edge)))
 
 
 def refinable_rollouts(edge):

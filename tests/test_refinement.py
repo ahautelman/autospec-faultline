@@ -20,6 +20,7 @@ from faultline.refinement import (
     reach_refine,
     seq_refine,
 )
+from faultline.refinement.operators import _copied_edge
 from tests.refinement_support import (
     MID,
     SAFE,
@@ -174,3 +175,42 @@ def test_or_refine_raises_without_an_alternative_parent():
     graph, edge = chain_graph()
     with pytest.raises(CannotRefineError):
         or_refine(graph, edge)
+
+
+def test_copied_edge_returns_the_corresponding_copied_edge():
+    graph, edge = chain_graph()
+    refined = graph.copy()
+
+    copied = _copied_edge(refined, graph, edge)
+
+    assert copied is refined.edges[0]
+    assert copied is not edge
+    assert (copied.source.name, copied.target.name) == (edge.source.name, edge.target.name)
+    assert copied.safe == edge.safe
+
+
+def test_copied_edge_preserves_edge_order_for_every_edge():
+    graph, _edge = chain_graph()
+    refined = graph.copy()
+
+    assert [_copied_edge(refined, graph, item) for item in graph.edges] == list(refined.edges)
+
+
+def test_copied_edge_rejects_an_edge_from_another_graph():
+    graph, _edge = chain_graph()
+    refined = graph.copy()
+    _other_graph, foreign = chain_graph()
+
+    with pytest.raises(ValueError):
+        _copied_edge(refined, graph, foreign)
+
+
+def test_copied_edge_rejects_a_copy_that_lost_the_edge_order():
+    graph, edge = chain_graph()
+    refined = graph.copy()
+    moved = refined.edges[0]
+    refined.remove_edge(moved)
+    refined.add_edge(moved.source, moved.target, moved.safe)
+
+    with pytest.raises(ValueError):
+        _copied_edge(refined, graph, edge)

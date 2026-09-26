@@ -21,12 +21,19 @@ import numpy as np
 from gymnasium import spaces
 
 from faultline.envs.layout import RoomsLayout
-from faultline.spectrl.predicates import PLANAR_DIMS, Box, Predicate, Universe
+from faultline.geometry import region_bounds
+from faultline.spectrl.predicates import PLANAR_DIMS, Predicate, Universe
 
 MAX_SPEED = 2.0
 MIN_SPEED = 0.0
 MAX_HEADING = math.pi
 DEFAULT_MAX_STEPS = 200
+
+# Success is landing on the goal point sampled at reset, not merely entering the
+# target region. The radius absorbs the small waypoint tolerance a controller uses
+# to stop, so a controller that lands on the point registers success. It stays
+# below one room so a goal behind a solid wall is not reached through the wall.
+SUCCESS_RADIUS = 1.0
 
 SUCCESS_REWARD = 10.0
 VIOLATION_REWARD = -10.0
@@ -126,23 +133,29 @@ class Rooms9(gym.Env):
             region: The predicate that the point must satisfy.
 
         How:
-            Samples a planar box directly from its bounds, which handles small
-            regions that rejection sampling would almost never hit. For any
-            other predicate, draws uniform points in the world square until one
-            satisfies the region. The seeded RNG makes both paths reproducible.
+            Uses the region's axis-aligned bounds when they are known, which makes
+            sampling a small refined region reliable: the sample is drawn inside
+            the bounds and rejected when it falls outside the region. An unbounded
+            region falls back to rejection sampling over the whole world. The
+            seeded RNG makes both paths reproducible.
 
         Returns:
             A position ``(x, y)`` inside the region.
 
         Raises:
-            RuntimeError: If rejection sampling finds no point within
+            RuntimeError: If no sample inside the region is found within
                 ``SAMPLE_ATTEMPTS``.
         """
         world = self.layout.world_size
-        if isinstance(region, Box) and region.dims == PLANAR_DIMS:
-            low = np.maximum(region.lower, 0.0)
-            high = np.minimum(region.upper, world)
-            return self._rng.uniform(low, high)
+        bounds = region_bounds(region, PLANAR_DIMS)
+        if bounds is not None:
+            low = np.maximum(bounds[0], 0.0)
+            high = np.minimum(bounds[1], world)
+            if np.all(low <= high):
+                for _ in range(SAMPLE_ATTEMPTS):
+                    point = self._rng.uniform(low, high)
+                    if region.evaluate(point):
+                        return point
         for _ in range(SAMPLE_ATTEMPTS):
             point = self._rng.uniform(0.0, world, size=2)
             if region.evaluate(point):
@@ -196,9 +209,9 @@ class Rooms9(gym.Env):
 
         How:
             Moves the agent by the point-mass rule, clips to the world and
-            blocks wall crossings, then checks the target and safe regions. A
-            violation or a success ends the episode. The step limit truncates
-            the episode.
+            blocks wall crossings, then checks the sampled goal point and the
+            safe region. A violation or a success ends the episode. The step
+            limit truncates the episode.
 
         Returns:
             The observation, reward, terminated flag, truncated flag, and an
@@ -209,7 +222,7 @@ class Rooms9(gym.Env):
         self._steps += 1
         distance = float(np.linalg.norm(self._goal - self._position))
         safe = bool(self.safe_region.evaluate(self._position))
-        reached = bool(self.target_region.evaluate(self._position)) and safe
+        reached = bool(distance <= SUCCESS_RADIUS and safe)
         if not safe:
             self._violated = True
         success = reached and not self._violated

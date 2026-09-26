@@ -174,21 +174,25 @@ def _waypoint_candidate(refined: AbstractGraph, graph: AbstractGraph, edge: Edge
         edge: The edge that was refined.
 
     How:
-        Locates the fresh vertex and reports the two edges that pass through it,
-        from the original source to the original target.
+        Locates the fresh vertex and reports the route through it, from the
+        original source to the original target. A two-hop route is the norm; when
+        the refined target was the graph target, SeqRefine makes the fresh vertex
+        the target and drops the bridge, so the route is the single new edge.
 
     Returns:
-        The candidate with the two-hop route.
+        The candidate with the route standing in for the original edge.
 
     Raises:
-        ValueError: If the fresh vertex or one of its two edges is missing.
+        ValueError: If the fresh vertex, or the first edge into it, is missing.
     """
     fresh = _optional_fresh_vertex(refined, graph)
     if fresh is None:
         raise ValueError("Operator did not add the waypoint vertex its contract requires")
     first = _edge_ref(refined, edge.source.name, fresh.name)
-    second = _edge_ref(refined, fresh.name, edge.target.name)
-    return Candidate(refined, ((first, second),))
+    bridge = _optional_edge_ref(refined, fresh.name, edge.target.name)
+    if bridge is None:
+        return Candidate(refined, ((first,),))
+    return Candidate(refined, ((first, bridge),))
 
 
 def _optional_fresh_vertex(refined: AbstractGraph, graph: AbstractGraph) -> Vertex | None:
@@ -230,10 +234,34 @@ def _edge_ref(graph: AbstractGraph, source_name: str, target_name: str) -> Edge:
     Raises:
         ValueError: If no edge has those endpoints.
     """
+    edge = _optional_edge_ref(graph, source_name, target_name)
+    if edge is None:
+        raise ValueError(f"No edge {source_name!r} -> {target_name!r} in the candidate graph")
+    return edge
+
+
+def _optional_edge_ref(
+    graph: AbstractGraph, source_name: str, target_name: str
+) -> Edge | None:
+    """Return the edge with the given endpoint names, or ``None`` if absent.
+
+    Args:
+        graph: The graph to search.
+        source_name: Source vertex name.
+        target_name: Target vertex name.
+
+    How:
+        Scans the edge list for the first endpoint-name match and reports the
+        absence instead of raising, so a caller can distinguish a missing bridge
+        from a malformed operator result.
+
+    Returns:
+        The matching edge, or ``None`` when no edge has those endpoints.
+    """
     for edge in graph.edges:
         if edge.source.name == source_name and edge.target.name == target_name:
             return edge
-    raise ValueError(f"No edge {source_name!r} -> {target_name!r} in the candidate graph")
+    return None
 
 
 def _vertex(graph: AbstractGraph, name: str) -> Vertex:

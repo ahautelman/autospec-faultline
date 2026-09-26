@@ -98,6 +98,14 @@ def test_tabular_learner_is_deterministic():
     assert np.allclose(first.rollouts[0].states[0], second.rollouts[0].states[0])
 
 
+def test_tabular_learner_accepts_a_training_seed():
+    """The planner accepts the training seed and stays deterministic."""
+    env = Rooms9()
+    learner = TabularLearner()
+    edge = _edge(REGIONS["start"], REGIONS["goal"])
+    assert learner.train_edge(env, edge, 0, seed=1) == learner.train_edge(env, edge, 0, seed=2)
+
+
 def test_ppo_default_recipe_matches_the_paper_recipe():
     """The default PPO settings match paper section 6.1."""
     assert DEFAULT_RECIPE["learning_rate"] == 0.0003
@@ -121,7 +129,7 @@ def test_learner_contract_returns_well_formed_estimates(make_learner):
     env = Rooms9()
     learner = make_learner()
     edge = _edge(REGIONS["start"], REGIONS["goal"])
-    policy = learner.train_edge(env, edge, 128)
+    policy = learner.train_edge(env, edge, 128, seed=0)
     estimate = learner.estimate_reach(env, edge, policy, CONTRACT_ROLLOUTS, seed=0)
     assert 0.0 <= estimate.success_probability <= 1.0
     assert len(estimate.rollouts) == CONTRACT_ROLLOUTS

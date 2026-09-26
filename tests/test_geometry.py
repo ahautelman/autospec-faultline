@@ -10,8 +10,14 @@ from __future__ import annotations
 
 import numpy as np
 
-from faultline.geometry import convex_hull, difference, half_plane_partition, intersect
-from faultline.spectrl.predicates import Box, Empty, Universe
+from faultline.geometry import (
+    convex_hull,
+    difference,
+    half_plane_partition,
+    intersect,
+    region_bounds,
+)
+from faultline.spectrl.predicates import And, Box, Empty, HalfPlane, Or, Universe
 
 
 def test_convex_hull_of_no_points_is_empty():
@@ -92,3 +98,36 @@ def test_half_plane_partition_returns_none_when_means_coincide():
 def test_half_plane_partition_requires_both_classes():
     assert half_plane_partition([], [[1.0, 1.0]]) is None
     assert half_plane_partition([[1.0, 1.0]], []) is None
+
+
+def test_region_bounds_of_a_box_are_its_own_bounds():
+    lower, upper = region_bounds(Box((1.0, 2.0), (3.0, 4.0)), (0, 1))
+    assert np.allclose(lower, [1.0, 2.0])
+    assert np.allclose(upper, [3.0, 4.0])
+
+
+def test_region_bounds_of_a_hull_are_the_vertex_extent():
+    hull = convex_hull([[0.0, 0.0], [2.0, 0.0], [0.0, 3.0]])
+    lower, upper = region_bounds(hull, (0, 1))
+    assert np.allclose(lower, [0.0, 0.0])
+    assert np.allclose(upper, [2.0, 3.0])
+
+
+def test_region_bounds_of_an_intersection_use_the_tightest_children():
+    region = And(Box((0.0, 0.0), (4.0, 4.0)), Box((1.0, 2.0), (3.0, 5.0)))
+    lower, upper = region_bounds(region, (0, 1))
+    assert np.allclose(lower, [1.0, 2.0])
+    assert np.allclose(upper, [3.0, 4.0])
+
+
+def test_region_bounds_of_a_union_need_every_child_bounded():
+    bounded = Or(Box((0.0, 0.0), (1.0, 1.0)), Box((2.0, 2.0), (3.0, 3.0)))
+    lower, upper = region_bounds(bounded, (0, 1))
+    assert np.allclose(lower, [0.0, 0.0])
+    assert np.allclose(upper, [3.0, 3.0])
+    assert region_bounds(Or(Box((0.0, 0.0), (1.0, 1.0)), HalfPlane((1.0, 0.0), 0.0)), (0, 1)) is None
+
+
+def test_region_bounds_of_an_unbounded_region_is_none():
+    assert region_bounds(Universe(), (0, 1)) is None
+    assert region_bounds(HalfPlane((1.0, 0.0), 0.0), (0, 1)) is None

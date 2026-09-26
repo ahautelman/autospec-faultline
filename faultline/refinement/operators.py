@@ -120,8 +120,10 @@ def seq_refine(
         sub-procedure that has no data: the paper's hard stop is a sample-starved
         edge, not a region that cannot move. The refined edge runs from the
         original source to a fresh vertex carrying the tightened target, safely
-        inside the tightened region, with an unconstrained bridge to the original
-        target vertex so any other path through it survives.
+        inside the tightened region. When the refined edge reached the graph
+        target, that vertex becomes the new target (the paper's "u' replaced by
+        u_r on this path"); otherwise an unconstrained bridge to the original
+        target vertex is added so any other path through it survives.
 
     Returns:
         A new graph with ``edge`` replaced by the refined two-hop path.
@@ -140,7 +142,10 @@ def seq_refine(
     vertex = refined.fresh_vertex("seq", target)
     refined.remove_edge(copied)
     refined.add_edge(copied.source, vertex, safe)
-    refined.add_edge(vertex, copied.target)
+    if copied.target is refined.target:
+        refined.target = vertex
+    else:
+        refined.add_edge(vertex, copied.target)
     return refined
 
 
@@ -300,18 +305,55 @@ def _copied_edge(refined: AbstractGraph, graph: AbstractGraph, edge: Edge) -> Ed
 
     How:
         Finds ``edge``'s index in the original graph's edge order and reads the
-        same index from the copy, which deep-copy preserves.
+        same index from the copy. The operator contract is that ``refined`` is an
+        untouched ``graph.copy()``, so it preserves both the edge count and the
+        edge order; the index therefore names the same edge. The correspondence is
+        checked rather than assumed: a copy whose length or position drifted fails
+        loudly instead of silently returning the wrong edge.
 
     Returns:
         The corresponding edge object in ``refined``.
 
     Raises:
-        ValueError: If ``edge`` is not part of ``graph``.
+        ValueError: If ``edge`` is not part of ``graph``, or the copied graph does
+            not preserve the edge's position and structure.
     """
+    if len(refined.edges) != len(graph.edges):
+        raise ValueError(
+            f"Copied graph has {len(refined.edges)} edges, "
+            f"the original has {len(graph.edges)}"
+        )
     for index, candidate in enumerate(graph.edges):
         if candidate is edge:
-            return refined.edges[index]
+            copied = refined.edges[index]
+            if not _same_edge(candidate, copied):
+                raise ValueError(
+                    f"Copied edge at index {index} does not correspond to {edge!r}"
+                )
+            return copied
     raise ValueError(f"Edge {edge!r} is not part of the graph")
+
+
+def _same_edge(edge: Edge, other: Edge) -> bool:
+    """Return whether two edges describe the same reach-avoid subgoal.
+
+    Args:
+        edge: The first edge to compare.
+        other: The second edge to compare.
+
+    How:
+        Compares endpoint names and the safe predicate, which implement equality
+        for the compiler's predicates. Identity is deliberately not required, so
+        an edge and its deep copy compare equal.
+
+    Returns:
+        ``True`` when both edges share endpoints and safe region.
+    """
+    return (
+        edge.source.name == other.source.name
+        and edge.target.name == other.target.name
+        and edge.safe == other.safe
+    )
 
 
 def _reaches(graph: AbstractGraph, start: Vertex, goal: Vertex) -> bool:
