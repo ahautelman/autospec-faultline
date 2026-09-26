@@ -20,7 +20,7 @@ from faultline.learners import (
     Rollout,
     TabularLearner,
 )
-from faultline.learners.ppo import DEFAULT_RECIPE
+from faultline.learners.ppo import DEFAULT_RECIPE, greedy_action_fn
 from faultline.spectrl.predicates import Universe
 
 SOLID_LAYOUT = RoomsLayout(doors={})
@@ -137,3 +137,64 @@ def test_learner_contract_returns_well_formed_estimates(make_learner):
         assert len(rollout.states) >= 1
         assert rollout.states[0].shape == (4,)
         assert rollout.states[0].dtype == np.dtype(float)
+
+
+def _predict_reference_rollouts(env, edge, policy, n_rollouts, seed):
+    """Roll out the public ``policy.predict`` path as the ground-truth reference."""
+    env.set_abstract_states(edge.source.region, edge.target.region, edge.safe)
+    rollouts = []
+    for episode in range(n_rollouts):
+        observation, _info = env.reset(seed=seed + episode)
+        states = [np.asarray(observation, dtype=float)]
+        safe = bool(edge.safe.evaluate(states[0][:2]))
+        reached = False
+        while True:
+            action, _state = policy.predict(observation, deterministic=True)
+            observation, _reward, terminated, truncated, info = env.step(action)
+            states.append(np.asarray(observation, dtype=float))
+            safe = safe and bool(edge.safe.evaluate(states[-1][:2]))
+            reached = bool(info["is_success"])
+            if terminated or truncated:
+                break
+        rollouts.append(Rollout(tuple(states), reached=reached, safe=safe))
+    return tuple(rollouts)
+
+
+def _assert_rollouts_equal(actual, expected):
+    """Assert two rollout tuples carry identical outcomes and states."""
+    assert len(actual) == len(expected)
+    for got, want in zip(actual, expected, strict=True):
+        assert got.reached == want.reached
+        assert got.safe == want.safe
+        assert len(got.states) == len(want.states)
+        for got_state, want_state in zip(got.states, want.states, strict=True):
+            assert np.array_equal(got_state, want_state)
+
+
+def test_fast_estimate_reach_matches_the_predict_reference_bit_for_bit():
+    """The fast evaluation path is a pure speed-up of ``policy.predict``.
+
+    The fast path hoists ``set_training_mode`` out of the rollout loop; the test
+    proves it changes neither the actions taken nor the reach-avoid outcomes, so
+    every evaluation number the pipeline reports stays identical.
+    """
+    pytest.importorskip("stable_baselines3")
+    learner = PPOEdgeLearner(
+        recipe={"n_steps": 64, "n_epochs": 1, "batch_size": 32}, budget=128, seed=0
+    )
+    edge = _edge(REGIONS["start"], REGIONS["goal"])
+    policy = learner.train_edge(Rooms9(), edge, 128, seed=0)
+
+    fast = learner.estimate_reach(Rooms9(), edge, policy, 3, seed=0)
+    reference = _predict_reference_rollouts(Rooms9(), edge, policy, 3, seed=0)
+
+    _assert_rollouts_equal(fast.rollouts, reference)
+    expected_success = sum(rollout.success for rollout in reference) / len(reference)
+    assert fast.success_probability == pytest.approx(expected_success)
+
+    action = greedy_action_fn(policy)
+    rng = np.random.default_rng(0)
+    for _ in range(20):
+        observation = rng.uniform([0.0, 0.0, -np.pi, 0.0], [24.0, 24.0, np.pi, 36.0])
+        reference_action, _state = policy.predict(observation, deterministic=True)
+        assert np.array_equal(action(observation), reference_action)

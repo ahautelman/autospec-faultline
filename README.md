@@ -143,9 +143,31 @@ uv run --extra interop --extra reports python -m faultline.experiments.rooms9_re
 
 Defaults match the paper: a 200k-step budget for every scenario, 1000 evaluation
 rollouts, checkpoints every 10k steps, and seeds 0-4. Training is expensive, so
-`--budget`, `--rollouts`, `--interval`, `--seeds`, `--steps`, and `--output` are
-flags, and `--plot-only` redraws the figures from the persisted data without
-retraining.
+`--budget`, `--rollouts`, `--interval`, `--intermediate-rollouts`, `--seeds`,
+`--workers`, `--steps`, and `--output` are flags, and `--plot-only` redraws the
+figures from the persisted data without retraining.
+
+The independent `(scenario, seed)` jobs run concurrently by default. Steps 1 and 2
+each dispatch their jobs to a process pool sized to `--workers`, which defaults to
+`FAULTLINE_WORKERS` or `os.cpu_count() - 1` (one core stays free for the OS and the
+orchestration loop); pass `--workers 1` for a serial run. Each worker is pinned to a
+single compute thread (`OMP_NUM_THREADS`, `MKL_NUM_THREADS`, and
+`torch.set_num_threads(1)`), so N workers run N distinct jobs instead of
+oversubscribing the cores with internal threads. Jobs share no state, and a
+concurrent run produces byte-identical records to a serial one. The pool prints one
+`[done] scenario=<name> seed=<n> (k/N)` line per finished job, which is the progress
+report while the workers run; a serial run also shows the per-edge tqdm bars.
+
+Profiling showed the run is dominated by the per-checkpoint rollout evaluation,
+not PPO itself. The two checkpoints the paper is compared at, the 80k reference
+step and the final budget, keep the full `--rollouts` (1000) count; every other
+checkpoint uses `--intermediate-rollouts` (100 by default), which only shapes the
+curve. Evaluation also drops the redundant per-step `set_training_mode` call
+Stable-Baselines3's `predict` makes (about a quarter of one evaluation): the policy
+is switched to evaluation mode once, then rolled out through the same prediction
+path ([`greedy_action_fn`](faultline/learners/ppo.py:78)), which a bit-for-bit test
+pins to `predict`. The run prints a stage banner per scenario, the edge regions it
+inspects, and one line per checkpoint with its success and rollout count.
 
 The run writes raw records to `reports/rooms9/data/` (`step1_<scenario>.json`
 checkpoint series and `step2_<scenario>.json` per-seed summaries) and figures to

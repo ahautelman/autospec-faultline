@@ -12,6 +12,7 @@ requires the extra.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import Any
 
 import numpy as np
@@ -35,6 +36,85 @@ DEFAULT_RECIPE: dict[str, Any] = {
     "gamma": 0.99,
     "policy_kwargs": {"net_arch": [64, 64]},
 }
+
+# The rollout fast path copies the body of Stable-Baselines3's ``BasePolicy.predict``
+# but hoists its per-step ``set_training_mode(False)`` out of the loop, which the
+# profile measured at ~14.4us per step, about a quarter of one evaluation. Because it
+# reads two SB3 internals (``policy.obs_to_tensor`` and ``policy._predict``) this is
+# guarded by a major-version check and pinned to the public ``predict`` result by a
+# bit-for-bit test; bump the prefix only after re-checking that test against the new
+# release.
+_SUPPORTED_SB3_MAJOR = "2."
+
+
+def check_sb3_supported() -> None:
+    """Fail loudly when Stable-Baselines3 is missing or outside the supported major.
+
+    How:
+        Imports Stable-Baselines3 and compares its major-version prefix against
+        :data:`_SUPPORTED_SB3_MAJOR`. The fast rollout path mirrors the internals of
+        ``BasePolicy.predict``, so an unverified release could silently change every
+        evaluation number.
+
+    Returns:
+        None: the installed version is supported.
+
+    Raises:
+        ImportError: If Stable-Baselines3 is not installed.
+        RuntimeError: If its version is outside the supported major.
+    """
+    try:
+        import stable_baselines3
+    except ImportError as err:
+        raise ImportError("The rollout fast path needs Stable-Baselines3 installed") from err
+    if not stable_baselines3.__version__.startswith(_SUPPORTED_SB3_MAJOR):
+        raise RuntimeError(
+            "The rollout fast path mirrors Stable-Baselines3 "
+            f"{_SUPPORTED_SB3_MAJOR}x predict internals; installed "
+            f"{stable_baselines3.__version__} is unverified"
+        )
+
+
+def greedy_action_fn(model: Any) -> Callable[[np.ndarray], np.ndarray]:
+    """Return a deterministic action function equivalent to ``model.predict``.
+
+    Args:
+        model: A trained Stable-Baselines3 model, or its policy object directly.
+
+    How:
+        Resolves the inner policy, switches it to evaluation mode once, then
+        returns a closure that repeats the ``obs_to_tensor`` -> ``_predict`` ->
+        post-process sequence ``BasePolicy.predict`` runs, minus the per-step
+        ``set_training_mode``. The result is deliberately identical to
+        ``model.predict(observation, deterministic=True)[0]``.
+
+    Returns:
+        A function mapping one observation to its greedy action array.
+    """
+    check_sb3_supported()
+    import torch as th
+    from gymnasium import spaces
+
+    # A BaseAlgorithm wraps its BasePolicy; accept either so callers can pass the
+    # handle train_edge returns without reaching inside it.
+    policy = getattr(model, "policy", model)
+    policy.set_training_mode(False)
+
+    def action(observation: np.ndarray) -> np.ndarray:
+        obs_tensor, vectorized_env = policy.obs_to_tensor(observation)
+        with th.no_grad():
+            actions = policy._predict(obs_tensor, deterministic=True)
+        actions = actions.cpu().numpy().reshape((-1, *policy.action_space.shape))
+        if isinstance(policy.action_space, spaces.Box):
+            if policy.squash_output:
+                actions = policy.unscale_action(actions)
+            else:
+                actions = np.clip(actions, policy.action_space.low, policy.action_space.high)
+        if not vectorized_env:
+            actions = actions.squeeze(axis=0)
+        return actions
+
+    return action
 
 
 class PPOEdgeLearner:
@@ -130,9 +210,11 @@ class PPOEdgeLearner:
             seed: Base seed for the episode RNG.
 
         How:
-            Sets the subgoal, then runs each episode from a freshly seeded reset
-            with deterministic actions. The safe flag tracks whether every
-            visited state stayed inside the safe region.
+            Sets the subgoal, builds the fast greedy-action function once (so the
+            per-step training-mode switch is paid a single time, not per rollout
+            step), then runs each episode from a freshly seeded reset with
+            deterministic actions. The safe flag tracks whether every visited state
+            stayed inside the safe region.
 
         Returns:
             An :class:`EdgeEstimate` with the success probability and rollouts.
@@ -143,26 +225,32 @@ class PPOEdgeLearner:
         if n_rollouts < 1:
             raise ValueError(f"n_rollouts must be positive, got {n_rollouts}")
         env.set_abstract_states(edge.source.region, edge.target.region, edge.safe)
+        action = greedy_action_fn(policy)
         rollouts = []
         for episode in range(n_rollouts):
             observation, _info = env.reset(seed=seed + episode)
-            rollouts.append(self._episode(env, edge, policy, observation))
+            rollouts.append(self._episode(env, edge, action, observation))
         success = sum(1 for rollout in rollouts if rollout.success) / n_rollouts
         return EdgeEstimate(success, tuple(rollouts))
 
     def _episode(
-        self, env: Any, edge: Edge, policy: Any, observation: np.ndarray
+        self,
+        env: Any,
+        edge: Edge,
+        action: Callable[[np.ndarray], np.ndarray],
+        observation: np.ndarray,
     ) -> Rollout:
         """Run one greedy episode and record it.
 
         Args:
             env: The environment for the episode.
             edge: The reach-avoid edge under test.
-            policy: The trained PPO model.
+            action: Deterministic action function, normally from
+                :func:`greedy_action_fn`.
             observation: The first observation from ``reset``.
 
         How:
-            Steps with deterministic policy actions until the episode ends.
+            Steps with the deterministic action function until the episode ends.
             Records every state and tracks the safe region and the success flag.
 
         Returns:
@@ -172,8 +260,8 @@ class PPOEdgeLearner:
         safe = bool(edge.safe.evaluate(states[0][:2]))
         reached = False
         while True:
-            action, _state = policy.predict(observation, deterministic=True)
-            observation, _reward, terminated, truncated, info = env.step(action)
+            step_action = action(observation)
+            observation, _reward, terminated, truncated, info = env.step(step_action)
             states.append(np.asarray(observation, dtype=float))
             safe = safe and bool(edge.safe.evaluate(states[-1][:2]))
             reached = bool(info["is_success"])

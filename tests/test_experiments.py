@@ -31,6 +31,12 @@ from faultline.experiments.records import (
     spread_from_dict,
     spread_to_dict,
 )
+from faultline.experiments.training import (
+    DEFAULT_INTERMEDIATE_ROLLOUTS,
+    DEFAULT_ROLLOUTS,
+    ReportSettings,
+    rollouts_for,
+)
 from faultline.graph import AbstractGraph
 from faultline.learners import EdgeEstimate
 from faultline.scenarios import SCENARIOS
@@ -182,3 +188,27 @@ def test_write_figures_renders_from_records(tmp_path):
 
 def test_reference_step_is_the_paper_budget():
     assert REFERENCE_STEP == 80_000
+
+
+def test_rollouts_for_keeps_full_count_at_the_reference_and_budget():
+    settings = ReportSettings(budget=BUDGET, rollouts=1000, interval=10_000, intermediate_rollouts=25)
+
+    assert rollouts_for(REFERENCE_STEP, settings) == 1000
+    assert rollouts_for(BUDGET, settings) == 1000
+    assert rollouts_for(10_000, settings) == 25
+    assert rollouts_for(70_000, settings) == 25
+
+
+def test_rollouts_for_uses_the_last_checkpoint_below_the_reference():
+    settings = ReportSettings(budget=BUDGET, rollouts=1000, interval=30_000, intermediate_rollouts=25)
+
+    assert rollouts_for(60_000, settings) == 1000
+    assert rollouts_for(90_000, settings) == 25
+
+
+def test_report_settings_default_intermediate_budget_is_small():
+    settings = ReportSettings()
+
+    assert settings.rollouts == DEFAULT_ROLLOUTS
+    assert settings.intermediate_rollouts == DEFAULT_INTERMEDIATE_ROLLOUTS
+    assert settings.intermediate_rollouts < settings.rollouts

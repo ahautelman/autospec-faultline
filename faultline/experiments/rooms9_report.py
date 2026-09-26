@@ -19,7 +19,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from faultline.experiments.figures import write_figures
-from faultline.experiments.pipeline import run_multi_seed, run_single_seed
+from faultline.experiments.pipeline import default_workers, run_multi_seed, run_single_seed
 from faultline.experiments.records import (
     ScenarioReport,
     ScenarioSpread,
@@ -32,6 +32,7 @@ from faultline.experiments.records import (
 )
 from faultline.experiments.training import (
     DEFAULT_BUDGET,
+    DEFAULT_INTERMEDIATE_ROLLOUTS,
     DEFAULT_INTERVAL,
     DEFAULT_ROLLOUTS,
     ReportSettings,
@@ -52,6 +53,7 @@ class ReportContext:
         scenarios: The scenarios to run, in report order.
         settings: The global training settings.
         data: Directory the JSON records are read from and written to.
+        workers: Worker-process count, or ``None`` to auto-size from the CPU count.
 
     How:
         Groups the values every step needs, so each step function stays within a
@@ -61,6 +63,7 @@ class ReportContext:
     scenarios: tuple[Scenario, ...]
     settings: ReportSettings
     data: Path
+    workers: int | None = None
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -68,7 +71,8 @@ def build_parser() -> argparse.ArgumentParser:
 
     How:
         Declares the output directory, the three global training settings, the
-        seed list, which step to run, and the plot-only switch.
+        seed list, the worker-process count, which step to run, and the
+        plot-only switch.
 
     Returns:
         The configured :class:`argparse.ArgumentParser`.
@@ -78,7 +82,19 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--budget", type=int, default=DEFAULT_BUDGET, help="steps per edge")
     parser.add_argument("--rollouts", type=int, default=DEFAULT_ROLLOUTS, help="evaluation rollouts")
     parser.add_argument("--interval", type=int, default=DEFAULT_INTERVAL, help="steps between checkpoints")
+    parser.add_argument(
+        "--intermediate-rollouts",
+        type=int,
+        default=DEFAULT_INTERMEDIATE_ROLLOUTS,
+        help="evaluation rollouts for non-reference checkpoints",
+    )
     parser.add_argument("--seeds", type=int, nargs="+", default=list(DEFAULT_SEEDS), help="seeds per scenario")
+    parser.add_argument(
+        "--workers",
+        type=int,
+        default=None,
+        help="parallel worker processes (default: FAULTLINE_WORKERS or cpu_count()-1; 1 is serial)",
+    )
     parser.add_argument("--steps", choices=("1", "2", "both"), default="both", help="which step to run")
     parser.add_argument("--plot-only", action="store_true", help="redraw figures from existing data")
     return parser
@@ -102,9 +118,28 @@ def main(argv: Sequence[str] | None = None) -> None:
     output = Path(args.output)
     context = ReportContext(
         scenarios=tuple(SCENARIOS.values()),
-        settings=ReportSettings(budget=args.budget, rollouts=args.rollouts, interval=args.interval),
+        settings=ReportSettings(
+            budget=args.budget,
+            rollouts=args.rollouts,
+            interval=args.interval,
+            intermediate_rollouts=args.intermediate_rollouts,
+        ),
         data=output / DATA_DIRNAME,
+        workers=args.workers,
     )
+    resolved_workers = args.workers if args.workers is not None else default_workers()
+    print(
+        f"9-rooms report: {len(context.scenarios)} scenarios, budget={args.budget}, "
+        f"reference/final rollouts={args.rollouts}, intermediate rollouts={args.intermediate_rollouts}, "
+        f"interval={args.interval}, seeds={list(args.seeds)}, workers={resolved_workers}",
+        flush=True,
+    )
+    for scenario in context.scenarios:
+        print(
+            f"  - {scenario.name}: {scenario.description} "
+            f"(operator={scenario.expected_operator})",
+            flush=True,
+        )
     if args.plot_only:
         reports = load_reports(context)
         spreads = load_spreads(context)
@@ -112,7 +147,10 @@ def main(argv: Sequence[str] | None = None) -> None:
         reports = train_step1(context, args.steps)
         spreads = train_step2(context, args.seeds, args.steps, reports)
     write_figures(reports, spreads, SCENARIOS, output)
-    print(f"Wrote {len(reports)} reports, {len(spreads)} spreads, and figures to {output}")
+    print(
+        f"Wrote {len(reports)} reports, {len(spreads)} spreads, and figures to {output}",
+        flush=True,
+    )
 
 
 def train_step1(context: ReportContext, steps: str) -> dict[str, ScenarioReport]:
@@ -131,7 +169,7 @@ def train_step1(context: ReportContext, steps: str) -> dict[str, ScenarioReport]
     """
     if steps == "2":
         return {}
-    reports = run_single_seed(context.scenarios, STEP1_SEED, context.settings)
+    reports = run_single_seed(context.scenarios, STEP1_SEED, context.settings, context.workers)
     for name, report in reports.items():
         write_json(context.data / f"step1_{name}.json", report_to_dict(report))
     return reports
@@ -161,7 +199,7 @@ def train_step2(
     if steps == "1":
         return {}
     reused = {name: {STEP1_SEED: report} for name, report in known.items()}
-    spreads = run_multi_seed(context.scenarios, seeds, context.settings, reused or None)
+    spreads = run_multi_seed(context.scenarios, seeds, context.settings, reused or None, context.workers)
     for name, spread in spreads.items():
         write_json(context.data / f"step2_{name}.json", spread_to_dict(spread))
     return spreads

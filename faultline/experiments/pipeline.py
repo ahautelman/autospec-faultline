@@ -7,6 +7,12 @@ Two steps produce the data the figures read back:
 - Step 2 repeats the pipeline for several seeds and keeps the before and after
   success at the reference and final checkpoints.
 
+Both steps run their independent ``(scenario, seed)`` jobs concurrently in worker
+processes by default, sized to ``os.cpu_count() - 1``. Each worker is pinned to a
+single compute thread so the cores run distinct jobs instead of oversubscribed
+internal threads. A serial run uses the same job function in one process, so the
+process boundary is the only difference between the two.
+
 The operator per scenario is the row of the section 11 table the scenario
 isolates, applied through the same candidate builders the Algorithm 1 loop uses.
 Pinning it keeps a run to one training per curve, which is what makes the full
@@ -17,7 +23,9 @@ covered by the pytest suite.
 from __future__ import annotations
 
 import math
+import os
 from collections.abc import Mapping, Sequence
+from concurrent.futures import ProcessPoolExecutor, as_completed
 
 from faultline.envs import Rooms9
 from faultline.experiments.overlays import build_overlay
@@ -30,6 +38,7 @@ from faultline.experiments.records import (
     SeedSummary,
     success_at,
 )
+from faultline.experiments.progress import disable as disable_progress
 from faultline.experiments.training import ReportSettings, TrainingRecord, train_with_checkpoints
 from faultline.graph.abstract_graph import AbstractGraph, Edge
 from faultline.learners import CannotRefineError, EdgeEstimate, PPOEdgeLearner
@@ -40,7 +49,7 @@ from faultline.refinement.candidates import (
     seq_candidate,
 )
 from faultline.refinement.operators import AVOID_TAIL_LENGTH
-from faultline.scenarios import Scenario
+from faultline.scenarios import SCENARIOS, Scenario
 
 _CANDIDATE_BUILDERS = {
     "seq": seq_candidate,
@@ -48,6 +57,9 @@ _CANDIDATE_BUILDERS = {
     "past": past_candidate,
     "or": or_candidate,
 }
+
+# Environment variable that overrides the auto-sized worker-process pool.
+WORKERS_ENV = "FAULTLINE_WORKERS"
 
 
 def source_edge(graph: AbstractGraph) -> Edge:
@@ -136,8 +148,12 @@ class ScenarioTrainer:
         try:
             candidate = _CANDIDATE_BUILDERS[operator](graph, edge, estimate, AVOID_TAIL_LENGTH)
         except CannotRefineError:
+            print(f"    refinement: {operator} refused (no successful trajectory)", flush=True)
             return ()
-        records = [self.train(route_edge) for route_edge in candidate.routes[0]]
+        route = candidate.routes[0]
+        names = [route[0].source.name, *(route_edge.target.name for route_edge in route)]
+        print(f"    refinement: {operator} route {' -> '.join(names)}", flush=True)
+        records = [self.train(route_edge) for route_edge in route]
         return route_product(records)
 
 
@@ -160,12 +176,25 @@ def run_reported_scenario(scenario: Scenario, seed: int, settings: ReportSetting
         The :class:`ScenarioReport` for the scenario and seed.
     """
     graph = scenario.build_graph()
-    trainer = ScenarioTrainer(scenario.make_env(), PPOEdgeLearner(seed=seed), seed, settings)
     edge = source_edge(graph)
     operator = scenario.expected_operator
+    print(f"\n=== scenario {scenario.name} (seed {seed}) ===", flush=True)
+    print(f"    {scenario.description}", flush=True)
+    print(
+        f"    bottleneck edge {edge.source.name}->{edge.target.name}: "
+        f"source={edge.source.region} target={edge.target.region} safe={edge.safe}",
+        flush=True,
+    )
+    trainer = ScenarioTrainer(scenario.make_env(), PPOEdgeLearner(seed=seed), seed, settings)
+    print("    stage 1/3: train bottleneck edge", flush=True)
     before = trainer.train(edge)
     overlay = build_overlay(operator, graph, edge, before.estimate) if operator else _empty_overlay()
+    print(f"    stage 2/3: refine with {operator or 'none'}", flush=True)
     after = trainer.refined_series(graph, edge, before.estimate, operator)
+    print(
+        f"    stage 3/3: scenario done, bottleneck final={before.estimate.success_probability:.3f}",
+        flush=True,
+    )
     return ScenarioReport(
         scenario=scenario.name,
         operator=operator or "none",
@@ -179,8 +208,161 @@ def run_reported_scenario(scenario: Scenario, seed: int, settings: ReportSetting
     )
 
 
+def default_workers() -> int:
+    """Return the worker-process count to use when the caller sets none.
+
+    How:
+        Reads :data:`WORKERS_ENV` when it holds a positive integer; otherwise
+        returns ``os.cpu_count() - 1`` so one core stays for the OS and the
+        orchestration loop. Never returns less than one.
+
+    Returns:
+        The number of worker processes.
+
+    Raises:
+        ValueError: If :data:`WORKERS_ENV` is set but is not a positive integer.
+    """
+    override = os.environ.get(WORKERS_ENV)
+    if override is None:
+        return max(1, (os.cpu_count() or 1) - 1)
+    try:
+        workers = int(override)
+    except ValueError as err:
+        raise ValueError(f"{WORKERS_ENV} must be an integer, got {override!r}") from err
+    if workers < 1:
+        raise ValueError(f"{WORKERS_ENV} must be positive, got {workers}")
+    return workers
+
+
+def configure_worker() -> None:
+    """Pin a worker process to one compute thread and silence its progress bars.
+
+    How:
+        Sets the OpenMP, MKL, and OpenBLAS thread caps and limits PyTorch's own
+        pool to a single thread, so N workers on an N-core machine run N distinct
+        jobs instead of oversubscribing the cores with internal threads. Also
+        disables tqdm, whose bars from several processes interleave unreadably.
+
+    Returns:
+        None: the environment and this process are configured in place.
+    """
+    os.environ["OMP_NUM_THREADS"] = "1"
+    os.environ["MKL_NUM_THREADS"] = "1"
+    os.environ["OPENBLAS_NUM_THREADS"] = "1"
+    disable_progress()
+    try:
+        import torch
+    except ImportError:
+        return
+    torch.set_num_threads(1)
+
+
+def _resolve_workers(workers: int | None) -> int:
+    """Return an explicit worker count, or the environment default.
+
+    Args:
+        workers: A caller-supplied count, or ``None`` to auto-size.
+
+    How:
+        Validates an explicit count and otherwise falls back to
+        :func:`default_workers`.
+
+    Returns:
+        A positive worker-process count.
+
+    Raises:
+        ValueError: If ``workers`` is given but is not positive.
+    """
+    if workers is None:
+        return default_workers()
+    if workers < 1:
+        raise ValueError(f"workers must be positive, got {workers}")
+    return workers
+
+
+def _run_job(job: tuple[str, int], settings: ReportSettings) -> ScenarioReport:
+    """Run one ``(scenario, seed)`` job in the current process.
+
+    Args:
+        job: The scenario name and training seed to run.
+        settings: The global training settings.
+
+    How:
+        Resolves the scenario through the catalogue, so only its name crosses the
+        process boundary (a scenario's graph factory is not picklable), then runs
+        the ordinary single-job pipeline.
+
+    Returns:
+        The scenario report for the job.
+    """
+    name, seed = job
+    return run_reported_scenario(SCENARIOS[name], seed, settings)
+
+
+def _log_done(desc: str, job: tuple[str, int], completed: int, total: int) -> None:
+    """Print one completion line for a finished job.
+
+    Args:
+        desc: Label for the step being run.
+        job: The finished job's scenario name and seed.
+        completed: Number of jobs finished so far, including this one.
+        total: Number of jobs submitted for the step.
+
+    How:
+        Writes a single flushed line, so several completions can interleave
+        without corrupting each other's output.
+
+    Returns:
+        None: the line is printed.
+    """
+    name, seed = job
+    print(f"[done] {desc} scenario={name} seed={seed} ({completed}/{total})", flush=True)
+
+
+def _run_jobs(
+    jobs: Sequence[tuple[str, int]], settings: ReportSettings, workers: int, desc: str
+) -> dict[tuple[str, int], ScenarioReport]:
+    """Run independent jobs concurrently when asked, sequentially otherwise.
+
+    Args:
+        jobs: The jobs to run, each a scenario name and seed.
+        settings: The global training settings.
+        workers: Worker-process count; ``1`` runs in-process and sequentially.
+        desc: Label for the per-completion log line.
+
+    How:
+        With more than one worker, submits every job to a
+        :class:`~concurrent.futures.ProcessPoolExecutor` sized to ``workers``,
+        each worker pinned to one thread by :func:`configure_worker`, and logs
+        each as it finishes. With one worker it runs the same job function
+        in-process, so serial and concurrent differ only by the process boundary.
+        Jobs share no state: each builds its own environment, policy, and
+        trajectories, and the caller writes result files only after they return.
+
+    Returns:
+        The reports keyed by ``(scenario name, seed)``.
+    """
+    results: dict[tuple[str, int], ScenarioReport] = {}
+    total = len(jobs)
+    if workers <= 1:
+        for completed, job in enumerate(jobs, start=1):
+            results[job] = _run_job(job, settings)
+            _log_done(desc, job, completed, total)
+        return results
+    with ProcessPoolExecutor(max_workers=workers, initializer=configure_worker) as pool:
+        futures = {pool.submit(_run_job, job, settings): job for job in jobs}
+        for completed, future in enumerate(as_completed(futures), start=1):
+            job = futures[future]
+            results[job] = future.result()
+            _log_done(desc, job, completed, total)
+    return results
+
+
 def run_single_seed(
-    scenarios: Sequence[Scenario], seed: int, settings: ReportSettings
+    scenarios: Sequence[Scenario],
+    seed: int,
+    settings: ReportSettings,
+    workers: int | None = None,
 ) -> dict[str, ScenarioReport]:
     """Run Step 1: one seed per scenario.
 
@@ -188,15 +370,19 @@ def run_single_seed(
         scenarios: The scenarios to run, in report order.
         seed: The training seed.
         settings: The global training settings.
+        workers: Worker-process count; ``None`` uses :func:`default_workers`.
 
     How:
-        Runs :func:`run_reported_scenario` for each scenario and keys the result
-        by scenario name.
+        Dispatches one ``(scenario, seed)`` job per scenario through
+        :func:`_run_jobs`, so the independent scenarios run concurrently by
+        default, and keys the results by scenario name.
 
     Returns:
         A mapping from scenario name to its report.
     """
-    return {scenario.name: run_reported_scenario(scenario, seed, settings) for scenario in scenarios}
+    jobs = [(scenario.name, seed) for scenario in scenarios]
+    results = _run_jobs(jobs, settings, _resolve_workers(workers), "step 1")
+    return {name: results[(name, seed)] for name, _ in jobs}
 
 
 def run_multi_seed(
@@ -204,6 +390,7 @@ def run_multi_seed(
     seeds: Sequence[int],
     settings: ReportSettings,
     known: Mapping[str, Mapping[int, ScenarioReport]] | None = None,
+    workers: int | None = None,
 ) -> dict[str, ScenarioSpread]:
     """Run Step 2: the before and after success per seed.
 
@@ -213,23 +400,34 @@ def run_multi_seed(
         settings: The global training settings.
         known: Reports already computed, keyed by scenario then seed, so Step 2
             can reuse Step 1's seed rather than retraining it.
+        workers: Worker-process count; ``None`` uses :func:`default_workers`.
 
     How:
-        For each scenario, runs any seed missing from ``known`` and then keeps the
-        before and after success at the reference and final checkpoints per seed.
+        Collects every ``(scenario, seed)`` pair missing from ``known``, dispatches
+        them together through :func:`_run_jobs` so they run concurrently by
+        default, then keeps the before and after success at the reference and
+        final checkpoints per seed.
 
     Returns:
         A mapping from scenario name to its :class:`ScenarioSpread`.
     """
     existing = known or {}
-    spreads: dict[str, ScenarioSpread] = {}
-    for scenario in scenarios:
-        reports = dict(existing.get(scenario.name, {}))
-        for seed in seeds:
-            if seed not in reports:
-                reports[seed] = run_reported_scenario(scenario, seed, settings)
-        spreads[scenario.name] = _spread(scenario, reports, seeds, settings.budget)
-    return spreads
+    reports: dict[str, dict[int, ScenarioReport]] = {
+        scenario.name: dict(existing.get(scenario.name, {})) for scenario in scenarios
+    }
+    jobs = [
+        (scenario.name, seed)
+        for scenario in scenarios
+        for seed in seeds
+        if seed not in reports[scenario.name]
+    ]
+    results = _run_jobs(jobs, settings, _resolve_workers(workers), "step 2")
+    for (name, seed), report in results.items():
+        reports[name][seed] = report
+    return {
+        scenario.name: _spread(scenario, reports[scenario.name], seeds, settings.budget)
+        for scenario in scenarios
+    }
 
 
 def _spread(

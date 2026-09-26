@@ -11,6 +11,7 @@ The training functions need the ``interop`` extra and the figures need the
 
 from faultline.experiments.figures import write_figures
 from faultline.experiments.pipeline import (
+    default_workers,
     route_product,
     run_multi_seed,
     run_reported_scenario,
@@ -27,6 +28,7 @@ from faultline.experiments.records import (
 )
 from faultline.experiments.training import (
     DEFAULT_BUDGET,
+    DEFAULT_INTERMEDIATE_ROLLOUTS,
     DEFAULT_INTERVAL,
     DEFAULT_ROLLOUTS,
     ReportSettings,
@@ -36,6 +38,7 @@ from faultline.experiments.training import (
 
 __all__ = [
     "DEFAULT_BUDGET",
+    "DEFAULT_INTERMEDIATE_ROLLOUTS",
     "DEFAULT_INTERVAL",
     "DEFAULT_ROLLOUTS",
     "Checkpoint",
@@ -45,6 +48,7 @@ __all__ = [
     "ScenarioSpread",
     "SeedSummary",
     "TrainingRecord",
+    "default_workers",
     "route_product",
     "run_multi_seed",
     "run_reported_scenario",
