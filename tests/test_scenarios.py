@@ -93,6 +93,18 @@ def test_narrow_door_layout_is_open_arena_with_one_wall():
     assert SCENARIOS["narrow_door"].unsafe_region is not None
 
 
+def test_long_corridor_layout_winds_around_the_sealed_right_column():
+    """The corridor climbs the left, crosses the top, and drops into the centre."""
+    layout = SCENARIOS["long_corridor"].layout
+    assert layout.is_open(("h", 0, 0), 4.0) is True
+    assert layout.is_open(("h", 0, 1), 4.0) is True
+    assert layout.is_open(("v", 0, 2), 20.0) is True
+    assert layout.is_open(("h", 1, 1), 12.0) is True
+    # The direct shortcut past the corridor and the right column stay walled off.
+    assert layout.is_open(("v", 0, 0), 4.0) is False
+    assert layout.is_open(("h", 2, 1), 20.0) is False
+
+
 def test_trap_goal_selects_reach_refinement():
     result = _planner_run("trap_goal")
     assert result.operators == ("seq",)

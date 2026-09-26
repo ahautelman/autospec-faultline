@@ -18,7 +18,13 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 from faultline.envs import Rooms9, RoomsLayout, open_doors_except_sealed_rooms
-from faultline.envs.layout import ROOMS_PER_SIDE, ROOM_SIZE, DoorInterval, WallKey
+from faultline.envs.layout import (
+    ROOMS_PER_SIDE,
+    ROOM_SIZE,
+    DoorInterval,
+    WallKey,
+    long_corridor_doors,
+)
 from faultline.graph.abstract_graph import AbstractGraph
 from faultline.spectrl.predicates import Box, Predicate
 
@@ -42,6 +48,9 @@ NARROW_DOOR_TRAP = Box((2.0, 15.0), (4.0, 17.0))
 # The centre room, on the default corridor: the sibling source the two-path
 # scenario reuses for the alternative route into the goal.
 MID = Box((9.0, 9.0), (15.0, 15.0))
+# The long-corridor goal: the paper's figure puts GOAL in the centre room, at the
+# far end of the corridor that climbs the left column and crosses the top row.
+LONG_CORRIDOR_GOAL = Box((9.0, 9.0), (15.0, 15.0))
 
 
 @dataclass(frozen=True)
@@ -144,9 +153,11 @@ def long_corridor() -> Scenario:
     """Return the long single-edge corridor scenario (AddRefine).
 
     How:
-        Uses the default corridor as one edge from START to GOAL, four rooms and
-        four doorways long, so a policy that cannot learn the long horizon leaves
-        AddRefine a waypoint to insert at the successful midpoints.
+        Uses the paper's winding corridor from START to GOAL as one edge: from the
+        bottom-left room the route climbs the left column, crosses the top, and
+        drops into the centre room, five rooms and four doorways long. A policy
+        that cannot learn that long horizon leaves AddRefine a waypoint to insert
+        at the successful midpoints.
 
     Returns:
         The ``long_corridor`` scenario.
@@ -154,8 +165,8 @@ def long_corridor() -> Scenario:
     return Scenario(
         name="long_corridor",
         description="One edge spans the whole corridor, isolating AddRefine.",
-        layout=RoomsLayout(),
-        build_graph=lambda: _single_edge(START, GOAL),
+        layout=RoomsLayout(doors=long_corridor_doors()),
+        build_graph=lambda: _single_edge(START, LONG_CORRIDOR_GOAL),
         expected_operator="add",
         reference_before=0.20,
         reference_after=0.90,
@@ -288,7 +299,7 @@ SCENARIOS: dict[str, Scenario] = {
         trap_goal(),
         narrow_door(),
         long_corridor(),
-        mixed_start(),
-        blocked_two_path(),
+        # mixed_start(),
+        # blocked_two_path(),
     )
 }

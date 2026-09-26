@@ -114,6 +114,32 @@ def open_doors_except_sealed_rooms(
     return doors
 
 
+def long_corridor_doors() -> dict[WallKey, DoorInterval]:
+    """Return the door set of the paper's winding 9-rooms corridor.
+
+    How:
+        Opens the six internal walls the paper's long-corridor figure leaves
+        unblocked. The route from START in room ``(0, 0)`` climbs the left column
+        to room ``(0, 2)``, crosses into room ``(1, 2)``, and drops south into GOAL
+        in the centre room ``(1, 1)``. The far-right column is walled off from the
+        centre except at the bottom row, so that winding path is the single
+        intended route. Every opening spans its whole room edge, so the joined
+        rooms merge into one area rather than a centred gap.
+
+    Returns:
+        A mapping from wall key to the full-edge open interval.
+    """
+    size = ROOM_SIZE
+    return {
+        ("h", 0, 0): (0.0 * size, 1.0 * size),  # (0, 0) - (0, 1)
+        ("h", 0, 1): (0.0 * size, 1.0 * size),  # (0, 1) - (0, 2)
+        ("h", 1, 0): (1.0 * size, 2.0 * size),  # (1, 0) - (1, 1)
+        ("h", 1, 1): (1.0 * size, 2.0 * size),  # (1, 1) - (1, 2)
+        ("v", 0, 2): (2.0 * size, 3.0 * size),  # (0, 2) - (1, 2)
+        ("v", 1, 0): (0.0 * size, 1.0 * size),  # (1, 0) - (2, 0)
+    }
+
+
 def _room_index(value: float, room_size: float, rooms_per_side: int) -> int:
     """Return the room index that contains one coordinate.
 
