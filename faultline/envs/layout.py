@@ -140,6 +140,33 @@ def long_corridor_doors() -> dict[WallKey, DoorInterval]:
     }
 
 
+def long_mixed_star_doors() -> dict[WallKey, DoorInterval]:
+    """Return the door set of the paper's long mixed star room.
+
+    How:
+        Opens the six internal walls the paper's long mixed star figure leaves
+        unblocked. The free area is a long zig-zag from START in room ``(0, 0)``:
+        it climbs into ``(0, 1)``, steps east into ``(1, 1)``, east again into
+        ``(2, 1)``, and finally climbs into GOAL in ``(2, 2)``. The bottom row
+        ``(0, 0) - (1, 0) - (2, 0)`` is a second, dead-end arm, and the two top-row
+        rooms ``(0, 2)`` and ``(1, 2)`` stay walled off. Every opening spans its
+        whole room edge, so the joined rooms merge into one area rather than a
+        centred gap.
+
+    Returns:
+        A mapping from wall key to the full-edge open interval.
+    """
+    size = ROOM_SIZE
+    return {
+        ("v", 0, 0): (0.0 * size, 1.0 * size),  # (0, 0) - (1, 0)
+        ("v", 1, 0): (0.0 * size, 1.0 * size),  # (1, 0) - (2, 0)
+        ("h", 0, 0): (0.0 * size, 1.0 * size),  # (0, 0) - (0, 1)
+        ("v", 0, 1): (1.0 * size, 2.0 * size),  # (0, 1) - (1, 1)
+        ("v", 1, 1): (1.0 * size, 2.0 * size),  # (1, 1) - (2, 1)
+        ("h", 2, 1): (2.0 * size, 3.0 * size),  # (2, 1) - (2, 2)
+    }
+
+
 def _room_index(value: float, room_size: float, rooms_per_side: int) -> int:
     """Return the room index that contains one coordinate.
 

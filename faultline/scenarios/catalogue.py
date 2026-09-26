@@ -24,6 +24,7 @@ from faultline.envs.layout import (
     DoorInterval,
     WallKey,
     long_corridor_doors,
+    long_mixed_star_doors,
 )
 from faultline.graph.abstract_graph import AbstractGraph
 from faultline.spectrl.predicates import Box, Predicate
@@ -36,10 +37,11 @@ TRAP_GOAL = Box((1.0, 17.0), (23.0, 23.0))
 # The two top-row rooms the trap_goal layout seals. Every other internal wall is
 # open, so the goal box's only reachable third is room (2, 2).
 TRAP_ROOMS: tuple[tuple[int, int], ...] = ((0, 2), (1, 2))
-# The start box covers the bottom-left room and the sealed room directly above it
-# in equal measure, so only the lower half can reach the goal and PastRefine's
-# mean-bisector half-plane lands on the y = 8 wall.
-MIXED_START = Box((1.0, 1.0), (7.0, 15.0))
+# The start box covers the middle-left room and the sealed top-left room directly
+# above it in equal measure. In the long mixed star layout only the lower half
+# joins the star's corridor and reaches the goal, so PastRefine's mean-bisector
+# half-plane lands on the y = 16 wall.
+MIXED_START = Box((1.0, 9.0), (7.0, 23.0))
 # narrow_door: the goal sits in the top-left room, reached by going up the
 # far-right gap of the dividing wall. The environment hides an unescapable trap in
 # the narrow left doorway; the specification does not model it.
@@ -177,9 +179,11 @@ def mixed_start() -> Scenario:
     """Return the mixed start-region scenario (PastRefine).
 
     How:
-        Extends the start box up the sealed left column, so starts below the y = 8
-        wall reach the goal while starts above it cannot, and PastRefine has a
-        linearly separable set of failing starts to cut.
+        Uses the paper's long mixed star room. The start box straddles the y = 16
+        wall at the top of the left column: the middle-left room below it joins the
+        star's corridor and reaches the goal, while the sealed top-left room above
+        it cannot. PastRefine therefore has a linearly separable set of failing
+        starts to cut on that wall.
 
     Returns:
         The ``mixed_start`` scenario.
@@ -187,7 +191,7 @@ def mixed_start() -> Scenario:
     return Scenario(
         name="mixed_start",
         description="Start region straddles a sealed room, isolating PastRefine.",
-        layout=RoomsLayout(),
+        layout=RoomsLayout(doors=long_mixed_star_doors()),
         build_graph=lambda: _single_edge(MIXED_START, GOAL),
         expected_operator="past",
         reference_before=0.40,
@@ -299,7 +303,7 @@ SCENARIOS: dict[str, Scenario] = {
         trap_goal(),
         narrow_door(),
         long_corridor(),
-        # mixed_start(),
-        # blocked_two_path(),
+        mixed_start(),
+        blocked_two_path(),
     )
 }

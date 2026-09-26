@@ -16,7 +16,7 @@ from faultline.envs import (
     default_regions,
     open_doors_except_sealed_rooms,
 )
-from faultline.envs.layout import WORLD_SIZE, long_corridor_doors
+from faultline.envs.layout import WORLD_SIZE, long_corridor_doors, long_mixed_star_doors
 
 
 def test_default_doors_are_the_four_corridor_walls():
@@ -141,3 +141,35 @@ def test_long_corridor_walls_off_the_direct_route_and_right_column():
     # The right column is sealed from the centre at the top and middle rows.
     assert layout.segment_is_blocked([12.0, 12.0], [20.0, 12.0]) is True
     assert layout.segment_is_blocked([12.0, 20.0], [20.0, 20.0]) is True
+
+
+def test_long_mixed_star_doors_are_the_six_open_walls():
+    """The paper's long mixed star room opens exactly its six unblocked walls."""
+    assert set(long_mixed_star_doors()) == {
+        ("v", 0, 0),
+        ("v", 1, 0),
+        ("h", 0, 0),
+        ("v", 0, 1),
+        ("v", 1, 1),
+        ("h", 2, 1),
+    }
+
+
+def test_long_mixed_star_route_zigzags_to_the_top_right_goal():
+    """The star's route climbs, steps east twice, then climbs into the goal."""
+    layout = RoomsLayout(doors=long_mixed_star_doors())
+    assert layout.segment_is_blocked([4.0, 4.0], [4.0, 12.0]) is False  # (0, 0)-(0, 1)
+    assert layout.segment_is_blocked([4.0, 12.0], [12.0, 12.0]) is False  # (0, 1)-(1, 1)
+    assert layout.segment_is_blocked([12.0, 12.0], [20.0, 12.0]) is False  # (1, 1)-(2, 1)
+    assert layout.segment_is_blocked([20.0, 12.0], [20.0, 20.0]) is False  # (2, 1)-(2, 2)
+
+
+def test_long_mixed_star_seals_the_top_row_and_opens_the_bottom_arm():
+    """The two top-row rooms stay sealed; the bottom row is a dead-end arm."""
+    layout = RoomsLayout(doors=long_mixed_star_doors())
+    # The sealed top-left room (0, 2) cannot be entered from below or the east.
+    assert layout.segment_is_blocked([4.0, 15.0], [4.0, 17.0]) is True
+    assert layout.segment_is_blocked([4.0, 20.0], [12.0, 20.0]) is True
+    # The bottom row is a second arm: (0, 0) - (1, 0) - (2, 0).
+    assert layout.segment_is_blocked([4.0, 4.0], [12.0, 4.0]) is False
+    assert layout.segment_is_blocked([12.0, 4.0], [20.0, 4.0]) is False

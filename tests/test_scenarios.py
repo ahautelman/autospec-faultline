@@ -105,6 +105,18 @@ def test_long_corridor_layout_winds_around_the_sealed_right_column():
     assert layout.is_open(("h", 2, 1), 20.0) is False
 
 
+def test_mixed_start_layout_is_the_paper_long_mixed_star_room():
+    """The star's corridor zig-zags from START to the top-right goal."""
+    layout = SCENARIOS["mixed_start"].layout
+    assert layout.is_open(("h", 0, 0), 4.0) is True
+    assert layout.is_open(("v", 0, 1), 12.0) is True
+    assert layout.is_open(("v", 1, 1), 12.0) is True
+    assert layout.is_open(("h", 2, 1), 20.0) is True
+    # The sealed top-left room and the solid divider across the right column.
+    assert layout.is_open(("h", 0, 1), 4.0) is False
+    assert layout.is_open(("h", 2, 0), 20.0) is False
+
+
 def test_trap_goal_selects_reach_refinement():
     result = _planner_run("trap_goal")
     assert result.operators == ("seq",)
