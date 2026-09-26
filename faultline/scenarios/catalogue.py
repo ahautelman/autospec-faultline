@@ -6,7 +6,7 @@ hand-built (paper section 10) so a scenario isolates one bottleneck edge instead
 of the whole compiled specification.
 
 The scenarios map one-to-one onto the table's symptom rows: a goal region that
-includes sealed rooms (ReachRefine), a dangerous second doorway into the goal room
+includes sealed rooms (ReachRefine), a narrow unsafe doorway beside the safe route
 (AvoidRefine), one edge spanning the whole corridor (AddRefine), a start region
 that straddles a sealed room (PastRefine), and one of two routes to the goal being
 unreachable (OrRefine).
@@ -17,23 +17,28 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass
 
-from faultline.envs import Rooms9, RoomsLayout, default_doors
-from faultline.envs.layout import DoorInterval, WallKey
+from faultline.envs import Rooms9, RoomsLayout, open_doors_except_sealed_rooms
+from faultline.envs.layout import ROOMS_PER_SIDE, ROOM_SIZE, DoorInterval, WallKey
 from faultline.graph.abstract_graph import AbstractGraph
-from faultline.spectrl.predicates import Box, Not, Predicate
+from faultline.spectrl.predicates import Box, Predicate
 
 START = Box((1.0, 1.0), (7.0, 7.0))
 GOAL = Box((17.0, 17.0), (23.0, 23.0))
 # The goal box reaches across the top row: only its right third (room (2, 2)) is
 # reachable, so a goal sampled in the sealed rooms (0, 2) or (1, 2) cannot be met.
 TRAP_GOAL = Box((1.0, 17.0), (23.0, 23.0))
+# The two top-row rooms the trap_goal layout seals. Every other internal wall is
+# open, so the goal box's only reachable third is room (2, 2).
+TRAP_ROOMS: tuple[tuple[int, int], ...] = ((0, 2), (1, 2))
 # The start box covers the bottom-left room and the sealed room directly above it
 # in equal measure, so only the lower half can reach the goal and PastRefine's
 # mean-bisector half-plane lands on the y = 8 wall.
 MIXED_START = Box((1.0, 1.0), (7.0, 15.0))
-# Room (1, 2), entered only through the extra west doorway and excluded from the
-# safe region: the dangerous half of the goal approach.
-DANGEROUS_SIDE_ROOM = Box((8.0, 16.0), (16.0, 24.0))
+# narrow_door: the goal sits in the top-left room, reached by going up the
+# far-right gap of the dividing wall. The environment hides an unescapable trap in
+# the narrow left doorway; the specification does not model it.
+NARROW_DOOR_GOAL = Box((1.0, 17.0), (7.0, 23.0))
+NARROW_DOOR_TRAP = Box((2.0, 15.0), (4.0, 17.0))
 # The centre room, on the default corridor: the sibling source the two-path
 # scenario reuses for the alternative route into the goal.
 MID = Box((9.0, 9.0), (15.0, 15.0))
@@ -53,6 +58,8 @@ class Scenario:
             symptom, or ``None`` when the scenario cannot isolate one operator.
         reference_before: The table's per-edge success before refinement.
         reference_after: The table's per-edge success after refinement.
+        unsafe_region: Optional unescapable trap the environment hides from the
+            specification; ``None`` means no trap.
 
     How:
         Holds geometry and metadata only. The graph factory defers construction so
@@ -67,6 +74,7 @@ class Scenario:
     expected_operator: str | None
     reference_before: float
     reference_after: float
+    unsafe_region: Predicate | None = None
 
     def make_env(self) -> Rooms9:
         """Build an environment over this scenario's layout.
@@ -78,16 +86,18 @@ class Scenario:
         Returns:
             A new environment instance.
         """
-        return Rooms9(layout=self.layout)
+        return Rooms9(layout=self.layout, unsafe_region=self.unsafe_region)
 
 
 def trap_goal() -> Scenario:
     """Return the goal-region-includes-a-trap scenario (ReachRefine).
 
     How:
-        Reuses the default corridor but widens the goal box across the sealed top
-        rooms, so only the reachable third of the box can be met and ReachRefine
-        has an unreachable part to cut.
+        Uses the open trap-goal layout: every internal wall is removed except the
+        walls sealing the two top-row trap rooms, so the arena is one open area
+        and only room (2, 2) of the top-row goal box can be reached. The
+        unreachable third of the goal box is what ReachRefine cuts, over a single
+        start-to-goal edge.
 
     Returns:
         The ``trap_goal`` scenario.
@@ -95,7 +105,7 @@ def trap_goal() -> Scenario:
     return Scenario(
         name="trap_goal",
         description="Goal region includes sealed rooms, isolating ReachRefine.",
-        layout=RoomsLayout(),
+        layout=RoomsLayout(doors=open_doors_except_sealed_rooms(TRAP_ROOMS)),
         build_graph=lambda: _single_edge(START, TRAP_GOAL),
         expected_operator="seq",
         reference_before=0.15,
@@ -107,25 +117,26 @@ def narrow_door() -> Scenario:
     """Return the narrow dangerous doorway scenario (AvoidRefine).
 
     How:
-        Adds a west doorway into the goal room through the side room and excludes
-        that side room from the safe region, so a goal approached from the west
-        violates safety and AvoidRefine has unsafe trajectory tails to block.
+        Builds one open arena split only by the wall along ``y = 16``: a narrow
+        doorway on the left, a solid middle, and a gap on the far right. The goal
+        is the top-left room and the only safe route is the far-right gap. The
+        environment hides an unescapable trap in the narrow doorway, which the
+        specification does not model (its safe region is the universe), so a policy
+        that takes the short door gets stuck and AvoidRefine has unsafe trajectory
+        tails to block.
 
     Returns:
         The ``narrow_door`` scenario.
     """
-    doors: dict[WallKey, DoorInterval] = {
-        ("h", 1, 1): (11.0, 13.0),
-        ("v", 1, 2): (19.0, 21.0),
-    }
     return Scenario(
         name="narrow_door",
-        description="A dangerous second doorway into the goal room, isolating AvoidRefine.",
-        layout=_layout_with(doors),
-        build_graph=lambda: _single_edge(START, GOAL, Not(DANGEROUS_SIDE_ROOM)),
+        description="A narrow unsafe doorway beside the safe route (AvoidRefine).",
+        layout=RoomsLayout(doors=_open_arena_doors()),
+        build_graph=lambda: _single_edge(START, NARROW_DOOR_GOAL),
         expected_operator="seq",
         reference_before=0.30,
         reference_after=0.75,
+        unsafe_region=NARROW_DOOR_TRAP,
     )
 
 
@@ -245,22 +256,29 @@ def _two_path_graph() -> AbstractGraph:
     return graph
 
 
-def _layout_with(extra: dict[WallKey, DoorInterval]) -> RoomsLayout:
-    """Build a 9-rooms layout with extra doors over the default corridor.
-
-    Args:
-        extra: Wall key to open interval mapping added to the default doors.
+def _open_arena_doors() -> dict[WallKey, DoorInterval]:
+    """Return the narrow-door door map: one dividing wall over an open arena.
 
     How:
-        Copies the default door map, overlays the extra doors, and builds a layout
-        that keeps the default room geometry.
+        Opens every vertical wall and every ``y = 8`` wall across its full edge so
+        those rooms merge into a single arena. The only wall left sits on
+        ``y = 16``: a narrow doorway in column 0, a solid middle, and a far-right
+        gap.
 
     Returns:
-        The layout with the extra doors opened.
+        The wall key to open interval mapping.
     """
-    doors = dict(default_doors())
-    doors.update(extra)
-    return RoomsLayout(doors=doors)
+    doors: dict[WallKey, DoorInterval] = {}
+    for row in range(ROOMS_PER_SIDE):
+        low, high = row * ROOM_SIZE, (row + 1) * ROOM_SIZE
+        doors[("v", 0, row)] = (low, high)
+        doors[("v", 1, row)] = (low, high)
+    for col in range(ROOMS_PER_SIDE):
+        low, high = col * ROOM_SIZE, (col + 1) * ROOM_SIZE
+        doors[("h", col, 0)] = (low, high)
+    doors[("h", 0, 1)] = (2.0, 4.0)
+    doors[("h", 2, 1)] = (19.0, 23.0)
+    return doors
 
 
 # The five table scenarios, keyed by name and in paper table order.

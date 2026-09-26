@@ -22,7 +22,7 @@ from gymnasium import spaces
 
 from faultline.envs.layout import RoomsLayout
 from faultline.geometry import region_bounds
-from faultline.spectrl.predicates import PLANAR_DIMS, Predicate, Universe
+from faultline.spectrl.predicates import PLANAR_DIMS, Empty, Predicate, Universe
 
 MAX_SPEED = 2.0
 MIN_SPEED = 0.0
@@ -55,19 +55,26 @@ class Rooms9(gym.Env):
         layout: Wall and door model. Defaults to the single-corridor 9-rooms
             layout.
         max_steps: Episode step limit, after which the episode truncates.
+        unsafe_region: Optional trap region. Entering it is an absorbing unsafe
+            outcome: the episode ends as a violation, so the agent can never
+            leave. Defaults to no trap.
 
     How:
-        Holds the current subgoal (source, target, and safe regions), the agent
-        position, and a seeded RNG. ``reset`` samples a start inside the source
-        region and a goal inside the target region. ``step`` applies the
-        point-mass dynamics, blocks wall crossings, and scores the reach-avoid
+        Holds the current subgoal (source, target, and safe regions), the optional
+        trap, the agent position, and a seeded RNG. ``reset`` samples a start
+        inside the source region and a goal inside the target region. ``step``
+        applies the point-mass dynamics, blocks wall crossings, ends the episode
+        as a violation when the agent enters the trap, and scores the reach-avoid
         condition.
     """
 
     metadata = {"render_modes": []}
 
     def __init__(
-        self, layout: RoomsLayout | None = None, max_steps: int = DEFAULT_MAX_STEPS
+        self,
+        layout: RoomsLayout | None = None,
+        max_steps: int = DEFAULT_MAX_STEPS,
+        unsafe_region: Predicate | None = None,
     ) -> None:
         super().__init__()
         self.layout = layout if layout is not None else RoomsLayout()
@@ -86,6 +93,7 @@ class Rooms9(gym.Env):
         self.source_region: Predicate = Universe()
         self.target_region: Predicate = Universe()
         self.safe_region: Predicate = Universe()
+        self.unsafe_region: Predicate = unsafe_region if unsafe_region is not None else Empty()
         self._rng = np.random.default_rng(0)
         self._position = np.zeros(2, dtype=float)
         self._goal = np.zeros(2, dtype=float)
@@ -221,15 +229,17 @@ class Rooms9(gym.Env):
         self._position = self._advance(action)
         self._steps += 1
         distance = float(np.linalg.norm(self._goal - self._position))
-        safe = bool(self.safe_region.evaluate(self._position))
+        spec_safe = bool(self.safe_region.evaluate(self._position))
+        in_trap = bool(self.unsafe_region.evaluate(self._position))
+        safe = spec_safe and not in_trap
         reached = bool(distance <= SUCCESS_RADIUS and safe)
-        if not safe:
+        if not spec_safe or in_trap:
             self._violated = True
         success = reached and not self._violated
         reward = self._reward(success, safe, previous_distance, distance)
         terminated = bool(success or self._violated)
         truncated = bool(self._steps >= self.max_steps and not terminated)
-        info = {"is_success": success}
+        info = {"is_success": success, "is_safe": safe}
         return self._observation(), reward, terminated, truncated, info
 
     def _advance(self, action: np.ndarray) -> np.ndarray:

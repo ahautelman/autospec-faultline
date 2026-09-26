@@ -5,7 +5,8 @@ wraps the PPO learner so ``model.learn`` is instrumented with a callback that, a
 a fixed step interval, evaluates the current policy over the paper's rollouts and
 records ``(step, success_probability)``. The training environment is left
 untouched: the callback evaluates on a separate environment built from the same
-layout, so mid-training estimates never disturb the rollout buffer.
+layout and trap (see :func:`make_eval_env`), so mid-training estimates never
+disturb the rollout buffer.
 
 Rollout count per checkpoint is the report's dominant cost. Profiling a 20k-step
 ``train_edge`` against one 1000-rollout ``estimate_reach`` showed training at
@@ -160,6 +161,24 @@ def rollouts_for(step: int, settings: ReportSettings) -> int:
     return min(settings.intermediate_rollouts, settings.rollouts)
 
 
+def make_eval_env(env: Rooms9) -> Rooms9:
+    """Build an evaluation environment that mirrors a training environment's world.
+
+    Args:
+        env: The training environment to mirror.
+
+    How:
+        Copies the wall-and-door layout and the trap, so mid-training estimates see
+        exactly the world the policy trains in. Dropping the trap here would hide
+        the unsafe rollouts the refinement operators depend on, so the estimate
+        would disagree with training.
+
+    Returns:
+        A fresh environment over the same layout and trap.
+    """
+    return Rooms9(layout=env.layout, unsafe_region=env.unsafe_region)
+
+
 def train_with_checkpoints(
     learner: PPOEdgeLearner,
     env: Rooms9,
@@ -177,8 +196,9 @@ def train_with_checkpoints(
         settings: Budget, rollout counts, and checkpoint interval.
 
     How:
-        Builds a separate evaluation environment over the same layout, runs the
-        learner for the budget with the checkpoint callback attached and the seed
+        Builds a separate evaluation environment over the same layout and trap,
+        runs the learner for the budget with the checkpoint callback attached and
+        the seed
         threaded into training. Each checkpoint prints its step, success, rollout
         count, and evaluation wall-clock, under the edge's endpoint names. The
         final estimate is the budget checkpoint's, so the extra evaluation the old
@@ -188,7 +208,7 @@ def train_with_checkpoints(
     Returns:
         The :class:`TrainingRecord` with the curve and the final estimate.
     """
-    eval_env = Rooms9(layout=env.layout)
+    eval_env = make_eval_env(env)
     checkpoints: list[Checkpoint] = []
     final: dict[str, EdgeEstimate] = {}
     tag = f"{edge.source.name}->{edge.target.name}"

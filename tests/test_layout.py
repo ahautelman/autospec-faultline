@@ -10,7 +10,12 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from faultline.envs import RoomsLayout, default_doors, default_regions
+from faultline.envs import (
+    RoomsLayout,
+    default_doors,
+    default_regions,
+    open_doors_except_sealed_rooms,
+)
 from faultline.envs.layout import WORLD_SIZE
 
 
@@ -79,3 +84,26 @@ def test_default_regions_sit_inside_their_rooms():
     assert regions["mid"].evaluate([4.0, 4.0]) is False
     assert regions["goal"].evaluate([20.0, 20.0]) is True
     assert regions["goal"].evaluate([12.0, 12.0]) is False
+
+
+def test_open_layout_opens_every_wall_away_from_the_sealed_rooms():
+    """Only the four walls bounding the two trap rooms stay out of the door map."""
+    doors = open_doors_except_sealed_rooms({(0, 2), (1, 2)})
+    assert set(doors) == {
+        ("v", 0, 0),
+        ("v", 0, 1),
+        ("v", 1, 0),
+        ("v", 1, 1),
+        ("h", 0, 0),
+        ("h", 1, 0),
+        ("h", 2, 0),
+        ("h", 2, 1),
+    }
+
+
+def test_open_layout_seals_the_trap_rooms_but_opens_the_goal_room():
+    """A move into a sealed room blocks; a move into the reachable goal does not."""
+    layout = RoomsLayout(doors=open_doors_except_sealed_rooms({(0, 2), (1, 2)}))
+    assert layout.segment_is_blocked([12.0, 15.0], [12.0, 17.0]) is True
+    assert layout.segment_is_blocked([20.0, 15.0], [20.0, 17.0]) is False
+    assert layout.segment_is_blocked([4.0, 4.0], [20.0, 4.0]) is False

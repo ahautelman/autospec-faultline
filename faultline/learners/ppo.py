@@ -263,7 +263,13 @@ class PPOEdgeLearner:
             step_action = action(observation)
             observation, _reward, terminated, truncated, info = env.step(step_action)
             states.append(np.asarray(observation, dtype=float))
-            safe = safe and bool(edge.safe.evaluate(states[-1][:2]))
+            # The edge's safe region is the specification's; the environment may
+            # also carry an unmodelled trap (info["is_safe"]), which must count too.
+            safe = (
+                safe
+                and bool(edge.safe.evaluate(states[-1][:2]))
+                and bool(info.get("is_safe", True))
+            )
             reached = bool(info["is_success"])
             if terminated or truncated:
                 break

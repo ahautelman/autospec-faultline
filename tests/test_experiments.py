@@ -35,6 +35,7 @@ from faultline.experiments.training import (
     DEFAULT_INTERMEDIATE_ROLLOUTS,
     DEFAULT_ROLLOUTS,
     ReportSettings,
+    make_eval_env,
     rollouts_for,
 )
 from faultline.graph import AbstractGraph
@@ -43,6 +44,14 @@ from faultline.scenarios import SCENARIOS
 from tests.refinement_support import MID, START, chain_graph, estimate, rollout
 
 BUDGET = 200_000
+
+
+def test_make_eval_env_mirrors_the_training_layout_and_trap():
+    """The evaluation env keeps the training env's walls and trap."""
+    training = SCENARIOS["narrow_door"].make_env()
+    evaluation = make_eval_env(training)
+    assert evaluation.layout.doors == training.layout.doors
+    assert evaluation.unsafe_region == training.unsafe_region
 
 
 def _report(name: str = "trap_goal") -> ScenarioReport:

@@ -18,6 +18,8 @@ scenario adds or removes doors.
 
 from __future__ import annotations
 
+from collections.abc import Iterable
+
 import numpy as np
 
 from faultline.spectrl.predicates import Box
@@ -77,6 +79,39 @@ def default_regions() -> dict[str, Box]:
         "mid": Box((9.0, 9.0), (15.0, 15.0)),
         "goal": Box((17.0, 17.0), (23.0, 23.0)),
     }
+
+
+def open_doors_except_sealed_rooms(
+    sealed_rooms: Iterable[tuple[int, int]],
+) -> dict[WallKey, DoorInterval]:
+    """Return a door map that opens every internal wall except sealed-room walls.
+
+    Args:
+        sealed_rooms: Grid coordinates ``(col, row)`` of the rooms to keep sealed.
+
+    How:
+        Walks every internal vertical and horizontal wall. A wall is opened
+        across its full room edge unless either adjacent room is sealed; a wall
+        next to a sealed room is left out of the map, so it stays solid and the
+        sealed rooms remain enclosed. The opening spans the whole edge rather
+        than a centred gap, which merges the open rooms into one area.
+
+    Returns:
+        A mapping from wall key to the full-edge open interval.
+    """
+    sealed = set(sealed_rooms)
+    doors: dict[WallKey, DoorInterval] = {}
+    for line_index in range(1, ROOMS_PER_SIDE):
+        for room in range(ROOMS_PER_SIDE):
+            low = room * ROOM_SIZE
+            high = low + ROOM_SIZE
+            left, right = (line_index - 1, room), (line_index, room)
+            if left not in sealed and right not in sealed:
+                doors[("v", line_index - 1, room)] = (low, high)
+            below, above = (room, line_index - 1), (room, line_index)
+            if below not in sealed and above not in sealed:
+                doors[("h", room, line_index - 1)] = (low, high)
+    return doors
 
 
 def _room_index(value: float, room_size: float, rooms_per_side: int) -> int:

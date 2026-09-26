@@ -3,8 +3,9 @@
 Two groups. The first pins the catalogue: the five encodings, their expected
 operators, and the graph structure each operator needs. The second runs scenarios
 end to end. The deterministic tabular planner drives the scenarios whose failure
-is unreachable sampled points or an unsafe alternate route (trap goal, narrow door,
-mixed start) over five seeds, asserting a stable operator selection. A scripted
+is unreachable sampled points (trap goal, mixed start) over five seeds, asserting a
+stable operator selection; narrow_door's failure is an unmodelled environment trap
+the safety-blind planner cannot repair, so it is checked on its own. A scripted
 learner drives the long-corridor and blocked two-path scenarios, whose failure is a
 policy-capacity effect the planner does not have; the real PPO acceptance is the
 separate slow suite.
@@ -25,7 +26,7 @@ SEEDS = (0, 1, 2, 3, 4)
 # PPO suite. The rollout count is high enough that PastRefine's mean-bisector
 # half-plane lands on the true boundary for every seed.
 PLANNER_OPTIONS = {"threshold": 0.9, "n_rollouts": 80}
-TABULAR_OPERATORS = (("trap_goal", "seq"), ("narrow_door", "add"), ("mixed_start", "past"))
+TABULAR_OPERATORS = (("trap_goal", "seq"), ("mixed_start", "past"))
 
 
 def _planner_run(name, seed=0):
@@ -80,6 +81,18 @@ def test_blocked_two_path_goal_has_two_parents():
     assert parents == {"start", "mid"}
 
 
+def test_narrow_door_layout_is_open_arena_with_one_wall():
+    """No dividers at x=8/x=16, no y=8 wall; the y=16 wall has door, solid, gap."""
+    layout = SCENARIOS["narrow_door"].layout
+    assert layout.is_open(("v", 0, 1), 12.0) is True
+    assert layout.is_open(("v", 1, 1), 12.0) is True
+    assert layout.is_open(("h", 0, 0), 4.0) is True
+    assert layout.is_open(("h", 0, 1), 3.0) is True
+    assert layout.is_open(("h", 1, 1), 12.0) is False
+    assert layout.is_open(("h", 2, 1), 21.0) is True
+    assert SCENARIOS["narrow_door"].unsafe_region is not None
+
+
 def test_trap_goal_selects_reach_refinement():
     result = _planner_run("trap_goal")
     assert result.operators == ("seq",)
@@ -94,13 +107,14 @@ def test_mixed_start_selects_past_refinement():
     assert result.best_path_after > 0.9
 
 
-def test_narrow_door_commits_the_refinement_the_planner_can_exploit():
-    # The planner ignores the safe region, so it repairs the dangerous alternate
-    # route with AddRefine rather than the paper's AvoidRefine, which the slow PPO
-    # suite covers. Either way a refinement must commit and raise the success rate.
+def test_narrow_door_trap_is_beyond_the_safety_blind_planner():
+    # The trap lives in the environment, not the specification, and the planner
+    # never consults the safe region: it walks straight into the door and fails, so
+    # no operator raises the measured success. The paper's AvoidRefine acceptance is
+    # the separate slow PPO suite.
     result = _planner_run("narrow_door")
-    assert result.operators == ("add",)
-    assert result.best_path_after > result.best_path_before
+    assert result.operators == (None,)
+    assert result.best_path_after == result.best_path_before
 
 
 def test_planner_needs_no_repair_on_the_long_corridor():

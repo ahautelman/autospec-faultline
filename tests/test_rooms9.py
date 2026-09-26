@@ -132,3 +132,31 @@ def test_reset_samples_a_goal_inside_a_small_composite_region():
     for seed in range(20):
         env.reset(seed=seed)
         assert target.evaluate(env.current_goal) is True
+
+
+def test_entering_the_trap_ends_the_episode_as_an_unsafe_violation():
+    """A step that lands in the trap terminates the episode without success."""
+    trap = Box((2.0, 2.0), (3.0, 3.0))
+    env = Rooms9(layout=SOLID_LAYOUT, unsafe_region=trap)
+    env.set_abstract_states(Box((1.4, 2.4), (1.6, 2.6)), FAR_TARGET, Universe())
+    env.reset(seed=0)
+    _observation, _reward, terminated, _truncated, info = env.step(
+        np.array([1.0, 0.0], dtype=np.float32)
+    )
+    assert terminated is True
+    assert info["is_safe"] is False
+    assert info["is_success"] is False
+
+
+def test_without_a_trap_the_same_move_is_free_and_safe():
+    """With no trap the agent moves normally and the step stays safe."""
+    env = Rooms9(layout=SOLID_LAYOUT)
+    env.set_abstract_states(Box((1.4, 2.4), (1.6, 2.6)), FAR_TARGET, Universe())
+    observation, _ = env.reset(seed=0)
+    before = observation[:2].copy()
+    observation, _reward, terminated, _truncated, info = env.step(
+        np.array([1.0, 0.0], dtype=np.float32)
+    )
+    assert not np.allclose(observation[:2], before)
+    assert info["is_safe"] is True
+    assert terminated is False
