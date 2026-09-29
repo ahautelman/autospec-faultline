@@ -16,7 +16,12 @@ from faultline.envs import (
     default_regions,
     open_doors_except_sealed_rooms,
 )
-from faultline.envs.layout import WORLD_SIZE, long_corridor_doors, long_mixed_star_doors
+from faultline.envs.layout import (
+    WORLD_SIZE,
+    blocked_two_path_doors,
+    long_corridor_doors,
+    long_mixed_star_doors,
+)
 
 
 def test_default_doors_are_the_four_corridor_walls():
@@ -173,3 +178,44 @@ def test_long_mixed_star_seals_the_top_row_and_opens_the_bottom_arm():
     # The bottom row is a second arm: (0, 0) - (1, 0) - (2, 0).
     assert layout.segment_is_blocked([4.0, 4.0], [12.0, 4.0]) is False
     assert layout.segment_is_blocked([12.0, 4.0], [20.0, 4.0]) is False
+
+
+def test_blocked_two_path_doors_are_the_eight_open_walls():
+    """The two-path room opens its two mid merges, two centre walls, four doorways."""
+    assert set(blocked_two_path_doors()) == {
+        ("v", 0, 2),
+        ("v", 1, 0),
+        ("h", 1, 1),
+        ("h", 1, 0),
+        ("h", 0, 0),
+        ("h", 0, 1),
+        ("h", 2, 0),
+        ("h", 2, 1),
+    }
+
+
+def test_blocked_two_path_winds_from_start_to_goal():
+    """The route climbs the left, drops the centre, and climbs the right column."""
+    layout = RoomsLayout(doors=blocked_two_path_doors())
+    # Up the left column into MID1: (0, 0) - (0, 1) - (0, 2).
+    assert layout.segment_is_blocked([4.0, 4.0], [4.0, 12.0]) is False
+    assert layout.segment_is_blocked([4.0, 12.0], [4.0, 20.0]) is False
+    # Across MID1 into room (1, 2).
+    assert layout.segment_is_blocked([4.0, 20.0], [12.0, 20.0]) is False
+    # Down the centre into MID2: (1, 2) - (1, 1) - (1, 0).
+    assert layout.segment_is_blocked([12.0, 20.0], [12.0, 12.0]) is False
+    assert layout.segment_is_blocked([12.0, 12.0], [12.0, 4.0]) is False
+    # Across MID2 into room (2, 0).
+    assert layout.segment_is_blocked([12.0, 4.0], [20.0, 4.0]) is False
+    # Up the right column into GOAL: (2, 0) - (2, 1) - (2, 2).
+    assert layout.segment_is_blocked([20.0, 4.0], [20.0, 12.0]) is False
+    assert layout.segment_is_blocked([20.0, 12.0], [20.0, 20.0]) is False
+
+
+def test_blocked_two_path_blocks_both_direct_shortcuts():
+    """START is walled off from MID2 and MID1 from GOAL, so neither edge is direct."""
+    layout = RoomsLayout(doors=blocked_two_path_doors())
+    # START cannot step straight into the bottom-middle room.
+    assert layout.segment_is_blocked([7.0, 4.0], [9.0, 4.0]) is True
+    # MID1 cannot step straight into GOAL.
+    assert layout.segment_is_blocked([15.0, 20.0], [17.0, 20.0]) is True

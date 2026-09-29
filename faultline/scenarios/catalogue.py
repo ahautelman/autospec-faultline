@@ -23,10 +23,11 @@ from faultline.envs.layout import (
     ROOM_SIZE,
     DoorInterval,
     WallKey,
+    blocked_two_path_doors,
     long_corridor_doors,
     long_mixed_star_doors,
 )
-from faultline.graph.abstract_graph import AbstractGraph
+from faultline.graph.abstract_graph import AbstractGraph, Edge
 from faultline.spectrl.predicates import Box, Predicate
 
 START = Box((1.0, 1.0), (7.0, 7.0))
@@ -47,9 +48,12 @@ MIXED_START = Box((1.0, 9.0), (7.0, 23.0))
 # the narrow left doorway; the specification does not model it.
 NARROW_DOOR_GOAL = Box((1.0, 17.0), (7.0, 23.0))
 NARROW_DOOR_TRAP = Box((2.0, 15.0), (4.0, 17.0))
-# The centre room, on the default corridor: the sibling source the two-path
-# scenario reuses for the alternative route into the goal.
-MID = Box((9.0, 9.0), (15.0, 15.0))
+# The two mid regions of the paper's two-path room. MID1 spans the top-left and
+# top-middle rooms; MID2 spans the bottom-middle and bottom-right rooms. Both are
+# parents of GOAL, and the refinement links MID1 to MID2 so the blocked
+# MID1 -> GOAL crossing is rerouted along the winding route.
+MID1 = Box((1.0, 17.0), (15.0, 23.0))
+MID2 = Box((9.0, 1.0), (23.0, 7.0))
 # The long-corridor goal: the paper's figure puts GOAL in the centre room, at the
 # far end of the corridor that climbs the left column and crosses the top row.
 LONG_CORRIDOR_GOAL = Box((9.0, 9.0), (15.0, 15.0))
@@ -71,6 +75,9 @@ class Scenario:
         reference_after: The table's per-edge success after refinement.
         unsafe_region: Optional unescapable trap the environment hides from the
             specification; ``None`` means no trap.
+        bottleneck: Optional selector returning the edge the report trains as the
+            bottleneck when the graph fans out from its source; ``None`` means the
+            single edge leaving the graph source.
 
     How:
         Holds geometry and metadata only. The graph factory defers construction so
@@ -86,6 +93,7 @@ class Scenario:
     reference_before: float
     reference_after: float
     unsafe_region: Predicate | None = None
+    bottleneck: Callable[[AbstractGraph], Edge] | None = None
 
     def make_env(self) -> Rooms9:
         """Build an environment over this scenario's layout.
@@ -98,6 +106,34 @@ class Scenario:
             A new environment instance.
         """
         return Rooms9(layout=self.layout, unsafe_region=self.unsafe_region)
+
+    def report_edge(self, graph: AbstractGraph) -> Edge:
+        """Return the bottleneck edge the report trains and refines.
+
+        Args:
+            graph: The scenario's freshly built graph.
+
+        How:
+            Uses the scenario's ``bottleneck`` selector when it has one, for a
+            scenario whose graph fans out from its source; otherwise returns the
+            single edge leaving the graph source, the common single-bottleneck
+            case.
+
+        Returns:
+            The edge the report trains as the before curve and refines.
+
+        Raises:
+            ValueError: If the graph has no source, or has no ``bottleneck`` and
+                its source does not have exactly one outgoing edge.
+        """
+        if self.bottleneck is not None:
+            return self.bottleneck(graph)
+        if graph.source is None:
+            raise ValueError("Scenario graph has no source vertex")
+        outgoing = graph.successors(graph.source)
+        if len(outgoing) != 1:
+            raise ValueError(f"Expected one source edge, found {len(outgoing)}")
+        return outgoing[0]
 
 
 def trap_goal() -> Scenario:
@@ -203,10 +239,15 @@ def blocked_two_path() -> Scenario:
     """Return the blocked two-path scenario (OrRefine).
 
     How:
-        Builds the graph ``start -> goal`` plus ``mid -> goal``. The direct edge to
-        the goal is the blocked route while the goal already has the mid edge as a
-        second parent, which is exactly the sibling OrRefine reuses to add
-        ``start -> mid`` and complete the alternative route.
+        Uses the paper's two-path room: START in room ``(0, 0)``, MID1 spanning
+        the top-left and top-middle rooms, MID2 spanning the bottom-middle and
+        bottom-right rooms, and GOAL in room ``(2, 2)``. Two interior walls block
+        the direct START-to-MID2 and MID1-to-GOAL crossings, so neither nominal
+        route of ``(start;mid1;goal) or (start;mid2;goal)`` is realisable on its
+        own. The report trains the blocked ``mid1 -> goal`` edge (see
+        :meth:`Scenario.report_edge`); OrRefine then reuses the goal's other parent
+        ``mid2`` to add ``mid1 -> mid2``, realising ``start -> mid1 -> mid2 ->
+        goal``.
 
     Returns:
         The ``blocked_two_path`` scenario.
@@ -214,11 +255,12 @@ def blocked_two_path() -> Scenario:
     return Scenario(
         name="blocked_two_path",
         description="The direct route to the goal is blocked; a sibling parent exists.",
-        layout=RoomsLayout(),
+        layout=RoomsLayout(doors=blocked_two_path_doors()),
         build_graph=_two_path_graph,
         expected_operator="or",
         reference_before=0.0,
         reference_after=0.85,
+        bottleneck=_blocked_two_path_bottleneck,
     )
 
 
@@ -249,26 +291,52 @@ def _single_edge(
 
 
 def _two_path_graph() -> AbstractGraph:
-    """Build the two-edge graph ``start -> goal`` plus ``mid -> goal``.
+    """Build the graph for ``(start;mid1;goal) or (start;mid2;goal)``.
 
     How:
-        Adds a direct edge from the start to the goal and an existing edge from a
-        mid corridor region into the same goal. The goal therefore has two parents
-        while the start has no route through the sibling, which is what OrRefine
-        completes by adding ``start -> mid``.
+        Adds both branches of the spec's disjunction. The two branch exits meet at
+        the goal, so the goal has two parents. The room walls block the direct
+        ``start -> mid2`` and ``mid1 -> goal`` crossings, so neither branch
+        succeeds on its own; OrRefine links ``mid1`` to the sibling ``mid2`` to
+        realise ``start -> mid1 -> mid2 -> goal``.
 
     Returns:
-        The two-edge abstract graph.
+        The four-vertex, four-edge abstract graph.
     """
     graph = AbstractGraph()
     start = graph.add_vertex("start", START)
-    mid = graph.add_vertex("mid", MID)
+    mid1 = graph.add_vertex("mid1", MID1)
+    mid2 = graph.add_vertex("mid2", MID2)
     goal = graph.add_vertex("goal", GOAL)
-    graph.add_edge(start, goal)
-    graph.add_edge(mid, goal)
+    graph.add_edge(start, mid1)
+    graph.add_edge(start, mid2)
+    graph.add_edge(mid1, goal)
+    graph.add_edge(mid2, goal)
     graph.source = start
     graph.target = goal
     return graph
+
+
+def _blocked_two_path_bottleneck(graph: AbstractGraph) -> Edge:
+    """Return the blocked ``mid1 -> goal`` edge the two-path report trains.
+
+    Args:
+        graph: The two-path graph.
+
+    How:
+        Names the edge whose target (the goal) already has the ``mid2`` sibling, so
+        it is the edge OrRefine reroutes through that sibling.
+
+    Returns:
+        The ``mid1 -> goal`` edge.
+
+    Raises:
+        ValueError: If the graph has no ``mid1 -> goal`` edge.
+    """
+    for edge in graph.edges:
+        if edge.source.name == "mid1" and edge.target.name == "goal":
+            return edge
+    raise ValueError("blocked_two_path graph has no mid1 -> goal edge")
 
 
 def _open_arena_doors() -> dict[WallKey, DoorInterval]:

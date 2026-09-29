@@ -176,7 +176,7 @@ def run_reported_scenario(scenario: Scenario, seed: int, settings: ReportSetting
         The :class:`ScenarioReport` for the scenario and seed.
     """
     graph = scenario.build_graph()
-    edge = source_edge(graph)
+    edge = scenario.report_edge(graph)
     operator = scenario.expected_operator
     print(f"\n=== scenario {scenario.name} (seed {seed}) ===", flush=True)
     print(f"    {scenario.description}", flush=True)

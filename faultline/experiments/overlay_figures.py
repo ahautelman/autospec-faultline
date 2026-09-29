@@ -27,7 +27,6 @@ from faultline.experiments.drawing import (
     shade_region,
 )
 from faultline.experiments.overlays import refined_region
-from faultline.experiments.pipeline import source_edge
 from faultline.experiments.records import ScenarioReport
 from faultline.graph.abstract_graph import AbstractGraph, Edge
 from faultline.learners import CannotRefineError
@@ -36,8 +35,8 @@ from faultline.scenarios import Scenario
 
 SOURCE_STYLE = RegionStyle("#4c72b0", 0.18, "source region")
 TARGET_STYLE = RegionStyle("#dd8452", 0.18, "target region")
+INTERMEDIATE_STYLE = RegionStyle("#55a868", 0.18, "waypoint region")
 REFINED_STYLE = RegionStyle("#55a868", 0.45, "refined region")
-SIBLING_STYLE = RegionStyle("#55a868", 0.35, "reused sibling region")
 SAMPLE_STYLE = RegionStyle("#c44e52", 0.85, "operator samples")
 FAILURE_STYLE = RegionStyle("#8172b3", 0.55, "failed starts")
 ADDED_EDGE_LABEL = "added OrRefine edge"
@@ -61,10 +60,9 @@ def draw_overlay(ax: Any, report: ScenarioReport, scenario: Scenario) -> None:
         None: the axes are drawn in place.
     """
     graph = scenario.build_graph()
-    edge = source_edge(graph)
+    edge = scenario.report_edge(graph)
     draw_layout(ax, scenario.layout)
-    shade_region(ax, edge.source.region, scenario.layout, SOURCE_STYLE)
-    shade_region(ax, edge.target.region, scenario.layout, TARGET_STYLE)
+    _shade_vertices(ax, graph, scenario)
     if report.overlay.kind == "edge":
         _draw_structural_edge(ax, graph, edge, scenario)
     else:
@@ -104,6 +102,32 @@ def write_overlay_figures(
     _write_grid(reports, scenarios, output / "overlays.png")
 
 
+def _shade_vertices(ax: Any, graph: AbstractGraph, scenario: Scenario) -> None:
+    """Shade every graph vertex's region, keyed by its role in the path.
+
+    Args:
+        ax: Target axes.
+        graph: The scenario's graph.
+        scenario: The scenario, supplying the layout.
+
+    How:
+        The graph source is drawn as the source region and the graph target as the
+        target region, so a two-vertex scenario looks as before; any intermediate
+        vertex -- a mid region on a multi-branch spec -- is drawn as a waypoint.
+
+    Returns:
+        None: the axes are drawn in place.
+    """
+    for vertex in graph.vertices:
+        if vertex is graph.source:
+            style = SOURCE_STYLE
+        elif vertex is graph.target:
+            style = TARGET_STYLE
+        else:
+            style = INTERMEDIATE_STYLE
+        shade_region(ax, vertex.region, scenario.layout, style)
+
+
 def _draw_refined_geometry(ax: Any, report: ScenarioReport, edge: Edge, scenario: Scenario) -> None:
     """Shade the refined region and scatter the operator's samples.
 
@@ -140,9 +164,10 @@ def _draw_structural_edge(ax: Any, graph: AbstractGraph, edge: Edge, scenario: S
         scenario: The scenario, supplying the layout.
 
     How:
-        Runs OrRefine, finds the edge it added, shades the reused sibling region,
-        and draws an arrow from the source centre to the sibling centre. A refusal
-        leaves the graph undrawn beyond the base regions.
+        Runs OrRefine, finds the edge it added, and draws an arrow from the blocked
+        edge source's centre to the sibling's centre. The sibling's own region is
+        already shaded as a graph waypoint. A refusal leaves the graph undrawn
+        beyond the base regions.
 
     Returns:
         None: the axes are drawn in place.
@@ -161,7 +186,6 @@ def _draw_structural_edge(ax: Any, graph: AbstractGraph, edge: Edge, scenario: S
     )
     if added is None:
         return
-    shade_region(ax, added.target.region, scenario.layout, SIBLING_STYLE)
     start = region_centre(added.source.region, scenario.layout)
     stop = region_centre(added.target.region, scenario.layout)
     draw_arrow(ax, start, stop, ADDED_EDGE_LABEL)

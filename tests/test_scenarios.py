@@ -78,7 +78,7 @@ def test_every_scenario_graph_is_a_dag_with_endpoints(name):
 def test_blocked_two_path_goal_has_two_parents():
     graph = SCENARIOS["blocked_two_path"].build_graph()
     parents = {edge.source.name for edge in graph.predecessors(graph.target)}
-    assert parents == {"start", "mid"}
+    assert parents == {"mid1", "mid2"}
 
 
 def test_narrow_door_layout_is_open_arena_with_one_wall():
@@ -115,6 +115,19 @@ def test_mixed_start_layout_is_the_paper_long_mixed_star_room():
     # The sealed top-left room and the solid divider across the right column.
     assert layout.is_open(("h", 0, 1), 4.0) is False
     assert layout.is_open(("h", 2, 0), 20.0) is False
+
+
+def test_blocked_two_path_layout_winds_between_two_blocked_shortcuts():
+    """The two-path room blocks both direct edges and only the winding route is open."""
+    layout = SCENARIOS["blocked_two_path"].layout
+    # The centre column and the two mid merges are open.
+    assert layout.is_open(("v", 0, 2), 20.0) is True
+    assert layout.is_open(("v", 1, 0), 4.0) is True
+    assert layout.is_open(("h", 1, 1), 12.0) is True
+    assert layout.is_open(("h", 1, 0), 12.0) is True
+    # Both direct shortcuts stay solid.
+    assert layout.is_open(("v", 0, 0), 4.0) is False
+    assert layout.is_open(("v", 1, 2), 20.0) is False
 
 
 def test_trap_goal_selects_reach_refinement():
@@ -170,14 +183,15 @@ def test_long_corridor_selects_add_with_a_capacity_learner():
 
 def test_blocked_two_path_selects_or_with_a_capacity_learner():
     def probability(edge):
-        if edge.source.name == "start" and edge.target.name == "goal":
+        blocked = {("mid1", "goal"), ("start", "mid2")}
+        if (edge.source.name, edge.target.name) in blocked:
             return 0.4
         return 0.9
 
     learner = ScriptedLearner(probability, blocked_rollouts)
     result = run_scenario(SCENARIOS["blocked_two_path"], learner, AutoSpecConfig(threshold=0.8))
 
-    assert result.operators == ("or",)
+    assert "or" in result.operators
     assert result.best_path_before < 0.6
     assert result.best_path_after > result.best_path_before
 

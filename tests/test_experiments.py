@@ -160,13 +160,14 @@ def test_past_overlay_splits_the_starts_and_fits_a_boundary():
 def test_or_overlay_records_the_added_edge():
     scenario = SCENARIOS["blocked_two_path"]
     graph = scenario.build_graph()
-    edge = source_edge(graph)
+    edge = scenario.report_edge(graph)
     rollouts = (rollout([[0.5, 0.5]], False, True),)
 
     overlay = build_overlay("or", graph, edge, estimate(rollouts))
 
     assert overlay.kind == "edge"
-    assert overlay.added_edge == ("start", "mid")
+    assert overlay.added_edge == ("mid1", "mid2")
+    assert (edge.source.name, edge.target.name) == ("mid1", "goal")
 
 
 def test_refined_region_shrinks_the_target_to_the_visited_hull():

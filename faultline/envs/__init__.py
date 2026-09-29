@@ -6,6 +6,7 @@ directly.
 
 from faultline.envs.layout import (
     RoomsLayout,
+    blocked_two_path_doors,
     default_doors,
     default_regions,
     long_corridor_doors,
@@ -17,6 +18,7 @@ from faultline.envs.rooms9 import Rooms9
 __all__ = [
     "Rooms9",
     "RoomsLayout",
+    "blocked_two_path_doors",
     "default_doors",
     "default_regions",
     "long_corridor_doors",

@@ -167,6 +167,42 @@ def long_mixed_star_doors() -> dict[WallKey, DoorInterval]:
     }
 
 
+def blocked_two_path_doors() -> dict[WallKey, DoorInterval]:
+    """Return the door set of the paper's blocked two-path room.
+
+    How:
+        Reproduces the paper's two-path figure. START sits in room ``(0, 0)``, the
+        left column climbs into MID1, the merged pair ``(0, 2) + (1, 2)``; the
+        centre column drops from MID1 through room ``(1, 1)`` into MID2, the merged
+        pair ``(1, 0) + (2, 0)``; and the right column climbs from MID2 into GOAL in
+        room ``(2, 2)``. Two of the four interior vertical walls -- START to the
+        bottom-middle room and MID1 to GOAL -- stay solid, so the direct edge that
+        would shorten each nominal route is blocked and only the winding path
+        realises both. The merged walls are fully open; the horizontal walls carry a
+        centred doorway.
+
+    Returns:
+        A mapping from wall key to the open interval on that wall.
+    """
+    size = ROOM_SIZE
+    half = DOOR_WIDTH / 2.0
+    centre = _DOOR_CENTRE
+    return {
+        # Full-edge merges: MID1 spans rooms (0, 2) and (1, 2); MID2 spans rooms
+        # (1, 0) and (2, 0).
+        ("v", 0, 2): (2.0 * size, 3.0 * size),  # (0, 2) - (1, 2)
+        ("v", 1, 0): (0.0 * size, 1.0 * size),  # (1, 0) - (2, 0)
+        # The centre column is open from MID1 down through (1, 1) into MID2.
+        ("h", 1, 1): (1.0 * size, 2.0 * size),  # (1, 1) - (1, 2)
+        ("h", 1, 0): (1.0 * size, 2.0 * size),  # (1, 0) - (1, 1)
+        # The left and right columns climb through centred doorways.
+        ("h", 0, 0): (0.0 * size + centre - half, 0.0 * size + centre + half),  # (0, 0) - (0, 1)
+        ("h", 0, 1): (0.0 * size + centre - half, 0.0 * size + centre + half),  # (0, 1) - (0, 2)
+        ("h", 2, 0): (2.0 * size + centre - half, 2.0 * size + centre + half),  # (2, 0) - (2, 1)
+        ("h", 2, 1): (2.0 * size + centre - half, 2.0 * size + centre + half),  # (2, 1) - (2, 2)
+    }
+
+
 def _room_index(value: float, room_size: float, rooms_per_side: int) -> int:
     """Return the room index that contains one coordinate.
 
