@@ -274,3 +274,43 @@ class PPOEdgeLearner:
             if terminated or truncated:
                 break
         return Rollout(tuple(states), reached=reached, safe=safe)
+
+
+    def continue_edge(
+            self,
+            env: Any,
+            edge: Edge,
+            policy: Any,
+            budget: int,
+            seed: int | None = None,
+    ) -> Any:
+        """Continue training an existing PPO edge policy.
+
+        LSTS repeatedly assigns small chunks of training to different active
+        sub-tasks. This method preserves the PPO parameters between chunks rather
+        than constructing a fresh policy.
+        """
+
+        print(
+            "continuing",
+            edge.source.name,
+            "->",
+            edge.target.name,
+            "timesteps:",
+            policy.num_timesteps,
+        )
+
+        env.set_abstract_states(
+            edge.source.region,
+            edge.target.region,
+            edge.safe,
+        )
+
+        policy.set_env(env)
+
+        policy.learn(
+            total_timesteps=int(budget),
+            reset_num_timesteps=False,
+        )
+
+        return policy

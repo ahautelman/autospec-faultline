@@ -186,28 +186,58 @@ class Rooms9(gym.Env):
             [self._position[0], self._position[1], heading, distance], dtype=np.float32
         )
 
+    # def reset(self, *, seed: int | None = None, options: dict | None = None):
+    #     """Start a new episode for the current subgoal.
+    #
+    #     Args:
+    #         seed: Optional RNG seed; reseeds the environment when given.
+    #         options: Unused, kept for the gymnasium interface.
+    #
+    #     How:
+    #         Optionally reseeds, samples the goal from the target region and the
+    #         start from the source region, then clears the step count and the
+    #         violation flag.
+    #
+    #     Returns:
+    #         The first observation and an info dict with ``is_success`` false.
+    #     """
+    #     if seed is not None:
+    #         self._rng = np.random.default_rng(seed)
+    #     self._goal = self._sample_point(self.target_region)
+    #     self._position = self._sample_point(self.source_region)
+    #
+    #     self._steps = 0
+    #     self._violated = False
+    #     return self._observation(), {"is_success": False}
+
     def reset(self, *, seed: int | None = None, options: dict | None = None):
-        """Start a new episode for the current subgoal.
+        """Start a new episode for the current subgoal."""
 
-        Args:
-            seed: Optional RNG seed; reseeds the environment when given.
-            options: Unused, kept for the gymnasium interface.
-
-        How:
-            Optionally reseeds, samples the goal from the target region and the
-            start from the source region, then clears the step count and the
-            violation flag.
-
-        Returns:
-            The first observation and an info dict with ``is_success`` false.
-        """
         if seed is not None:
             self._rng = np.random.default_rng(seed)
+
         self._goal = self._sample_point(self.target_region)
-        self._position = self._sample_point(self.source_region)
+
+        if options is not None and "start_position" in options:
+            start = np.asarray(options["start_position"], dtype=float)
+
+            if start.shape != (2,):
+                raise ValueError("start_position must have shape (2,)")
+
+            if not self.source_region.evaluate(start):
+                raise ValueError(
+                    "start_position must lie inside the current source region"
+                )
+
+            self._position = start.copy()
+        else:
+            self._position = self._sample_point(self.source_region)
+
         self._steps = 0
         self._violated = False
+
         return self._observation(), {"is_success": False}
+
 
     def step(self, action: np.ndarray):
         """Apply one action and score the reach-avoid condition.

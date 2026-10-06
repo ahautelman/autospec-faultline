@@ -113,7 +113,7 @@ class EdgeSuccess:
 
     source: str
     target: str
-    probability: float
+    probability: float | None
 
 
 @dataclass(frozen=True)
@@ -254,12 +254,39 @@ class _EdgeTrainer:
             best = max(best, product)
         return best, working
 
+    def from_graph_learner(
+            self,
+            graph: AbstractGraph,
+            graph_learner: Any,
+    ) -> dict:
+        """Run DiRL/LSTS and convert their learned edges to AutoSpec's cache."""
+
+        results = graph_learner.learn_graph(
+            graph=graph,
+            env=self.env,
+            edge_learner=self.learner,
+            budget=self.config.budget,
+            n_rollouts=self.config.n_rollouts,
+            seed=self.config.seed,
+        )
+
+        cache = {}
+
+        for result in results:
+            cache[_edge_key(result.edge)] = _Training(
+                policy=result.policy,
+                estimate=result.estimate,
+            )
+
+        return cache
+
 
 def run_autospec(
     graph: AbstractGraph,
     env: Any,
     learner: Any,
     config: AutoSpecConfig | None = None,
+    graph_learner: Any | None = None,
 ) -> AutoSpecRun:
     """Run the Algorithm 1 refinement loop once.
 
@@ -289,27 +316,85 @@ def run_autospec(
     active_config = config if config is not None else AutoSpecConfig()
     trainer = _EdgeTrainer(env, learner, active_config)
     working = graph.copy()
-    cache = trainer.align(working, {})
+
+    if graph_learner is None:
+        # Existing behaviour.
+        cache = trainer.align(working, {})
+    else:
+        cache = trainer.from_graph_learner(
+            working,
+            graph_learner,
+        )
     initial_edge_success = tuple(
         EdgeSuccess(
             edge.source.name,
             edge.target.name,
-            cache[_edge_key(edge)].estimate.success_probability,
+            (
+                cache[_edge_key(edge)].estimate.success_probability
+                if _edge_key(edge) in cache
+                else None
+            ),
         )
         for edge in working.edges
     )
     steps = []
+    # for template in _ordered_edges(working):
+    #     edge = _locate(working, template.source.name, template.target.name)
+    #     if edge is None:
+    #         continue
+    #     estimate = cache[_edge_key(edge)].estimate
+    #     if estimate.success_probability >= active_config.threshold:
+    #         continue
+    #     working, cache, step = _refine_edge(working, edge, estimate, cache, trainer)
+    #     steps.append(step)
     for template in _ordered_edges(working):
-        edge = _locate(working, template.source.name, template.target.name)
+        edge = _locate(
+            working,
+            template.source.name,
+            template.target.name,
+        )
+
         if edge is None:
             continue
-        estimate = cache[_edge_key(edge)].estimate
+
+        key = _edge_key(edge)
+
+        # Algorithm 1: π_e is Null when the underlying spec-guided
+        # learner did not learn this edge.
+        if key not in cache:
+            continue
+
+        estimate = cache[key].estimate
+
         if estimate.success_probability >= active_config.threshold:
             continue
-        working, cache, step = _refine_edge(working, edge, estimate, cache, trainer)
+
+        working, cache, step = _refine_edge(
+            working,
+            edge,
+            estimate,
+            cache,
+            trainer,
+        )
         steps.append(step)
+
+        if step.operator is not None and graph_learner is not None:
+            cache = trainer.from_graph_learner(
+                working,
+                graph_learner,
+            )
+
+
+    # probabilities = {
+    #     edge: cache[_edge_key(edge)].estimate.success_probability for edge in working.edges
+    # }
     probabilities = {
-        edge: cache[_edge_key(edge)].estimate.success_probability for edge in working.edges
+        edge: (
+            cache[_edge_key(edge)].estimate.success_probability
+            if _edge_key(edge) in cache
+            else 0.0
+        )
+        for edge in working.edges
     }
     edge_success = tuple(
         EdgeSuccess(edge.source.name, edge.target.name, probabilities[edge])
@@ -365,7 +450,8 @@ def _refine_edge(
             step = RefinementStep(
                 edge.source.name, edge.target.name, tuple(tried), name, before, score
             )
-            return candidate.graph, trainer.align(candidate.graph, candidate_cache), step
+            # return candidate.graph, trainer.align(candidate.graph, candidate_cache),
+            return candidate.graph, candidate_cache, step
     step = RefinementStep(edge.source.name, edge.target.name, tuple(tried), None, before, before)
     return graph, cache, step
 
