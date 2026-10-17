@@ -213,8 +213,10 @@ class PPOEdgeLearner:
             Sets the subgoal, builds the fast greedy-action function once (so the
             per-step training-mode switch is paid a single time, not per rollout
             step), then runs each episode from a freshly seeded reset with
-            deterministic actions. The safe flag tracks whether every visited state
-            stayed inside the safe region.
+            deterministic actions. Evaluation seeds are allocated in disjoint
+            10,000-seed blocks per experiment seed, so different experiment seeds
+            do not reuse almost the same rollout initialisations. The safe flag
+            tracks whether every visited state stayed inside the safe region.
 
         Returns:
             An :class:`EdgeEstimate` with the success probability and rollouts.
@@ -228,7 +230,8 @@ class PPOEdgeLearner:
         action = greedy_action_fn(policy)
         rollouts = []
         for episode in range(n_rollouts):
-            observation, _info = env.reset(seed=seed + episode)
+            episode_seed = int(seed) * 10_000 + episode
+            observation, _info = env.reset(seed=episode_seed)
             rollouts.append(self._episode(env, edge, action, observation))
         success = sum(1 for rollout in rollouts if rollout.success) / n_rollouts
         return EdgeEstimate(success, tuple(rollouts))
@@ -271,7 +274,13 @@ class PPOEdgeLearner:
                 and bool(info.get("is_safe", True))
             )
             reached = bool(info["is_success"])
-            if terminated or truncated:
+            # A reach-avoid rollout ends at the first safety violation.
+            # HiddenHazardRooms9 deliberately keeps the *training* episode alive
+            # while the faulty specification still permits the hidden hazard, but
+            # evaluation must stop immediately when info["is_safe"] becomes false.
+            # This also keeps AvoidRefine's last-k rollout tail localized at the
+            # actual unsafe state.
+            if terminated or truncated or not safe:
                 break
         return Rollout(tuple(states), reached=reached, safe=safe)
 
@@ -290,15 +299,6 @@ class PPOEdgeLearner:
         sub-tasks. This method preserves the PPO parameters between chunks rather
         than constructing a fresh policy.
         """
-
-        print(
-            "continuing",
-            edge.source.name,
-            "->",
-            edge.target.name,
-            "timesteps:",
-            policy.num_timesteps,
-        )
 
         env.set_abstract_states(
             edge.source.region,

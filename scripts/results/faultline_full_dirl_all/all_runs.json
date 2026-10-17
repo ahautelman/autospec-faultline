@@ -1,0 +1,4865 @@
+[
+  {
+    "status": "ok",
+    "case": "goal_trap",
+    "fault_type": "goal_trap",
+    "severity": 1.0,
+    "seed": 0,
+    "learner": "ppo",
+    "method": "dirl",
+    "expected_operator": "seq",
+    "actual_operator": "seq",
+    "first_committed_operator": "seq",
+    "fault_trigger_operator": "seq",
+    "fault_trigger_edge": [
+      "start",
+      "goal"
+    ],
+    "expected_operator_used": true,
+    "operator_correct": true,
+    "outcome_category": "correct_operator_inexact_repair",
+    "refinement_possible": true,
+    "evidence_reason": "both reachable and unreachable target samples available",
+    "baseline_reached_trajectories": 45,
+    "baseline_successful_trajectories": 45,
+    "baseline_failed_trajectories": 55,
+    "baseline_unsafe_trajectories": 0,
+    "baseline_unsafe_reached_trajectories": 0,
+    "baseline_affected_edge_probability": 0.45,
+    "committed_operators": [
+      "seq"
+    ],
+    "operators_examined": [
+      {
+        "source": "start",
+        "target": "goal",
+        "operators_tried": [
+          "seq"
+        ],
+        "committed_operator": "seq",
+        "success_before": 0.45,
+        "success_after": 1.0,
+        "is_fault_trigger": true
+      }
+    ],
+    "initial_best_path_success": 0.45,
+    "final_best_path_success": 1.0,
+    "best_path_improvement": 0.55,
+    "initial_edge_success": [
+      {
+        "source": "start",
+        "target": "goal",
+        "probability": 0.45
+      }
+    ],
+    "final_edge_success": [
+      {
+        "source": "start",
+        "target": "seq1",
+        "probability": 1.0
+      }
+    ],
+    "recovery": {
+      "metric_type": "target_region",
+      "baseline_iou": 0.5,
+      "repaired_iou": 0.7727272727272727,
+      "iou_improvement": 0.2727272727272727,
+      "normalized_recovery_gain": 0.5454545454545454,
+      "baseline_precision": 0.5,
+      "baseline_recall": 1.0,
+      "repaired_precision": 1.0,
+      "repaired_recall": 0.7727272727272727,
+      "baseline_weighted_iou": 1.0,
+      "repaired_weighted_iou": 1.0,
+      "weighted_iou_improvement": 0.0,
+      "subset_fraction": 1.0,
+      "normalized_graph_edit_distance": 1.0,
+      "graph_similarity": null,
+      "missing_edge_recovered": null,
+      "topology_recovered": null,
+      "recovered": false,
+      "recovery_reason": "repair removed wrong states but over-shrank the correct region"
+    },
+    "cost": {
+      "wall_clock_seconds": 377.16326289999415,
+      "train_edge_calls": 3,
+      "continue_edge_calls": 0,
+      "estimate_calls": 3,
+      "requested_training_steps": 240000,
+      "evaluation_rollouts": 300
+    },
+    "config": {
+      "threshold": 0.8,
+      "budget": 80000,
+      "n_rollouts": 100,
+      "avoid_tail_length": 1,
+      "quality_threshold": 0.8,
+      "grid_resolution": 121
+    },
+    "fault": {
+      "description": "Broadened vertex 'goal' with an unreachable target region.",
+      "affected_vertex": "goal",
+      "affected_edge": null
+    },
+    "graphs": {
+      "correct": {
+        "source": "start",
+        "target": "goal",
+        "vertices": [
+          {
+            "name": "start",
+            "region": "Rect(1, 1, 3.5, 3.5)"
+          },
+          {
+            "name": "goal",
+            "region": "Rect(5, 4.5, 7, 6.5)"
+          }
+        ],
+        "edges": [
+          {
+            "source": "start",
+            "target": "goal",
+            "safe": "true"
+          }
+        ]
+      },
+      "faulty": {
+        "source": "start",
+        "target": "goal",
+        "vertices": [
+          {
+            "name": "start",
+            "region": "Rect(1, 1, 3.5, 3.5)"
+          },
+          {
+            "name": "goal",
+            "region": "Rect(5, 4.5, 7, 6.5) ∨ Rect(9, 4.5, 11, 6.5)"
+          }
+        ],
+        "edges": [
+          {
+            "source": "start",
+            "target": "goal",
+            "safe": "true"
+          }
+        ]
+      },
+      "repaired": {
+        "source": "start",
+        "target": "seq1",
+        "vertices": [
+          {
+            "name": "start",
+            "region": "Rect(1, 1, 3.5, 3.5)"
+          },
+          {
+            "name": "goal",
+            "region": "Rect(5, 4.5, 7, 6.5) ∨ Rect(9, 4.5, 11, 6.5)"
+          },
+          {
+            "name": "seq1",
+            "region": "(Rect(5, 4.5, 7, 6.5) ∨ Rect(9, 4.5, 11, 6.5)) ∧ Hull((5.01713752746582, 4.852050304412842), (5.164052486419678, 4.674961566925049), (5.821287631988525, 4.519054412841797), (6.377281665802002, 4.5130696296691895), (6.474982261657715, 4.538595199584961), (6.675597190856934, 4.633419513702393), (6.94546365737915, 4.851785182952881), (6.994208335876465, 5.854690074920654), (6.978374004364014, 6.029227256774902), (6.962650775909424, 6.17418098449707), (6.835996150970459, 6.408962249755859), (6.6722211837768555, 6.453862190246582), (5.931726932525635, 6.497683525085449), (5.386293888092041, 6.443233489990234), (5.029970169067383, 5.6970295906066895))"
+          }
+        ],
+        "edges": [
+          {
+            "source": "start",
+            "target": "seq1",
+            "safe": "true"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "status": "ok",
+    "case": "goal_trap",
+    "fault_type": "goal_trap",
+    "severity": 1.0,
+    "seed": 1,
+    "learner": "ppo",
+    "method": "dirl",
+    "expected_operator": "seq",
+    "actual_operator": "seq",
+    "first_committed_operator": "seq",
+    "fault_trigger_operator": "seq",
+    "fault_trigger_edge": [
+      "start",
+      "goal"
+    ],
+    "expected_operator_used": true,
+    "operator_correct": true,
+    "outcome_category": "correct_operator_inexact_repair",
+    "refinement_possible": true,
+    "evidence_reason": "both reachable and unreachable target samples available",
+    "baseline_reached_trajectories": 49,
+    "baseline_successful_trajectories": 49,
+    "baseline_failed_trajectories": 51,
+    "baseline_unsafe_trajectories": 0,
+    "baseline_unsafe_reached_trajectories": 0,
+    "baseline_affected_edge_probability": 0.49,
+    "committed_operators": [
+      "seq"
+    ],
+    "operators_examined": [
+      {
+        "source": "start",
+        "target": "goal",
+        "operators_tried": [
+          "seq"
+        ],
+        "committed_operator": "seq",
+        "success_before": 0.49,
+        "success_after": 1.0,
+        "is_fault_trigger": true
+      }
+    ],
+    "initial_best_path_success": 0.49,
+    "final_best_path_success": 1.0,
+    "best_path_improvement": 0.51,
+    "initial_edge_success": [
+      {
+        "source": "start",
+        "target": "goal",
+        "probability": 0.49
+      }
+    ],
+    "final_edge_success": [
+      {
+        "source": "start",
+        "target": "seq1",
+        "probability": 1.0
+      }
+    ],
+    "recovery": {
+      "metric_type": "target_region",
+      "baseline_iou": 0.5,
+      "repaired_iou": 0.7454545454545455,
+      "iou_improvement": 0.24545454545454548,
+      "normalized_recovery_gain": 0.49090909090909096,
+      "baseline_precision": 0.5,
+      "baseline_recall": 1.0,
+      "repaired_precision": 1.0,
+      "repaired_recall": 0.7454545454545455,
+      "baseline_weighted_iou": 1.0,
+      "repaired_weighted_iou": 1.0,
+      "weighted_iou_improvement": 0.0,
+      "subset_fraction": 1.0,
+      "normalized_graph_edit_distance": 1.0,
+      "graph_similarity": null,
+      "missing_edge_recovered": null,
+      "topology_recovered": null,
+      "recovered": false,
+      "recovery_reason": "repair removed wrong states but over-shrank the correct region"
+    },
+    "cost": {
+      "wall_clock_seconds": 355.78865689999657,
+      "train_edge_calls": 3,
+      "continue_edge_calls": 0,
+      "estimate_calls": 3,
+      "requested_training_steps": 240000,
+      "evaluation_rollouts": 300
+    },
+    "config": {
+      "threshold": 0.8,
+      "budget": 80000,
+      "n_rollouts": 100,
+      "avoid_tail_length": 1,
+      "quality_threshold": 0.8,
+      "grid_resolution": 121
+    },
+    "fault": {
+      "description": "Broadened vertex 'goal' with an unreachable target region.",
+      "affected_vertex": "goal",
+      "affected_edge": null
+    },
+    "graphs": {
+      "correct": {
+        "source": "start",
+        "target": "goal",
+        "vertices": [
+          {
+            "name": "start",
+            "region": "Rect(1, 1, 3.5, 3.5)"
+          },
+          {
+            "name": "goal",
+            "region": "Rect(5, 4.5, 7, 6.5)"
+          }
+        ],
+        "edges": [
+          {
+            "source": "start",
+            "target": "goal",
+            "safe": "true"
+          }
+        ]
+      },
+      "faulty": {
+        "source": "start",
+        "target": "goal",
+        "vertices": [
+          {
+            "name": "start",
+            "region": "Rect(1, 1, 3.5, 3.5)"
+          },
+          {
+            "name": "goal",
+            "region": "Rect(5, 4.5, 7, 6.5) ∨ Rect(9, 4.5, 11, 6.5)"
+          }
+        ],
+        "edges": [
+          {
+            "source": "start",
+            "target": "goal",
+            "safe": "true"
+          }
+        ]
+      },
+      "repaired": {
+        "source": "start",
+        "target": "seq1",
+        "vertices": [
+          {
+            "name": "start",
+            "region": "Rect(1, 1, 3.5, 3.5)"
+          },
+          {
+            "name": "goal",
+            "region": "Rect(5, 4.5, 7, 6.5) ∨ Rect(9, 4.5, 11, 6.5)"
+          },
+          {
+            "name": "seq1",
+            "region": "(Rect(5, 4.5, 7, 6.5) ∨ Rect(9, 4.5, 11, 6.5)) ∧ Hull((5.034632682800293, 5.427958965301514), (5.061096668243408, 4.5895771980285645), (5.123045444488525, 4.546054363250732), (6.123912334442139, 4.518373012542725), (6.490313529968262, 4.509529113769531), (6.589707374572754, 4.51446008682251), (6.936107635498047, 4.692287445068359), (6.974390983581543, 4.730678558349609), (6.855360984802246, 6.474952220916748), (6.223320007324219, 6.455901622772217), (5.827609539031982, 6.4071760177612305), (5.536927223205566, 6.218463897705078), (5.224323272705078, 6.01542854309082), (5.180638790130615, 5.897475242614746))"
+          }
+        ],
+        "edges": [
+          {
+            "source": "start",
+            "target": "seq1",
+            "safe": "true"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "status": "ok",
+    "case": "goal_trap",
+    "fault_type": "goal_trap",
+    "severity": 1.0,
+    "seed": 2,
+    "learner": "ppo",
+    "method": "dirl",
+    "expected_operator": "seq",
+    "actual_operator": "seq",
+    "first_committed_operator": "seq",
+    "fault_trigger_operator": "seq",
+    "fault_trigger_edge": [
+      "start",
+      "goal"
+    ],
+    "expected_operator_used": true,
+    "operator_correct": true,
+    "outcome_category": "correct_operator_inexact_repair",
+    "refinement_possible": true,
+    "evidence_reason": "both reachable and unreachable target samples available",
+    "baseline_reached_trajectories": 47,
+    "baseline_successful_trajectories": 47,
+    "baseline_failed_trajectories": 53,
+    "baseline_unsafe_trajectories": 0,
+    "baseline_unsafe_reached_trajectories": 0,
+    "baseline_affected_edge_probability": 0.47,
+    "committed_operators": [
+      "seq"
+    ],
+    "operators_examined": [
+      {
+        "source": "start",
+        "target": "goal",
+        "operators_tried": [
+          "seq"
+        ],
+        "committed_operator": "seq",
+        "success_before": 0.47,
+        "success_after": 1.0,
+        "is_fault_trigger": true
+      }
+    ],
+    "initial_best_path_success": 0.47,
+    "final_best_path_success": 1.0,
+    "best_path_improvement": 0.53,
+    "initial_edge_success": [
+      {
+        "source": "start",
+        "target": "goal",
+        "probability": 0.47
+      }
+    ],
+    "final_edge_success": [
+      {
+        "source": "start",
+        "target": "seq1",
+        "probability": 1.0
+      }
+    ],
+    "recovery": {
+      "metric_type": "target_region",
+      "baseline_iou": 0.5,
+      "repaired_iou": 0.6454545454545455,
+      "iou_improvement": 0.1454545454545455,
+      "normalized_recovery_gain": 0.290909090909091,
+      "baseline_precision": 0.5,
+      "baseline_recall": 1.0,
+      "repaired_precision": 1.0,
+      "repaired_recall": 0.6454545454545455,
+      "baseline_weighted_iou": 1.0,
+      "repaired_weighted_iou": 1.0,
+      "weighted_iou_improvement": 0.0,
+      "subset_fraction": 1.0,
+      "normalized_graph_edit_distance": 1.0,
+      "graph_similarity": null,
+      "missing_edge_recovered": null,
+      "topology_recovered": null,
+      "recovered": false,
+      "recovery_reason": "repair removed wrong states but over-shrank the correct region"
+    },
+    "cost": {
+      "wall_clock_seconds": 414.2815564000048,
+      "train_edge_calls": 3,
+      "continue_edge_calls": 0,
+      "estimate_calls": 3,
+      "requested_training_steps": 240000,
+      "evaluation_rollouts": 300
+    },
+    "config": {
+      "threshold": 0.8,
+      "budget": 80000,
+      "n_rollouts": 100,
+      "avoid_tail_length": 1,
+      "quality_threshold": 0.8,
+      "grid_resolution": 121
+    },
+    "fault": {
+      "description": "Broadened vertex 'goal' with an unreachable target region.",
+      "affected_vertex": "goal",
+      "affected_edge": null
+    },
+    "graphs": {
+      "correct": {
+        "source": "start",
+        "target": "goal",
+        "vertices": [
+          {
+            "name": "start",
+            "region": "Rect(1, 1, 3.5, 3.5)"
+          },
+          {
+            "name": "goal",
+            "region": "Rect(5, 4.5, 7, 6.5)"
+          }
+        ],
+        "edges": [
+          {
+            "source": "start",
+            "target": "goal",
+            "safe": "true"
+          }
+        ]
+      },
+      "faulty": {
+        "source": "start",
+        "target": "goal",
+        "vertices": [
+          {
+            "name": "start",
+            "region": "Rect(1, 1, 3.5, 3.5)"
+          },
+          {
+            "name": "goal",
+            "region": "Rect(5, 4.5, 7, 6.5) ∨ Rect(9, 4.5, 11, 6.5)"
+          }
+        ],
+        "edges": [
+          {
+            "source": "start",
+            "target": "goal",
+            "safe": "true"
+          }
+        ]
+      },
+      "repaired": {
+        "source": "start",
+        "target": "seq1",
+        "vertices": [
+          {
+            "name": "start",
+            "region": "Rect(1, 1, 3.5, 3.5)"
+          },
+          {
+            "name": "goal",
+            "region": "Rect(5, 4.5, 7, 6.5) ∨ Rect(9, 4.5, 11, 6.5)"
+          },
+          {
+            "name": "seq1",
+            "region": "(Rect(5, 4.5, 7, 6.5) ∨ Rect(9, 4.5, 11, 6.5)) ∧ Hull((5.006558418273926, 4.8275299072265625), (5.042830467224121, 4.637794017791748), (5.096343040466309, 4.566127300262451), (5.515218257904053, 4.50355863571167), (6.172661781311035, 4.6143646240234375), (6.964511394500732, 5.239317417144775), (6.983582496643066, 5.28375768661499), (6.97184419631958, 5.759147644042969), (6.934898376464844, 6.24105167388916), (5.7378010749816895, 6.445507049560547), (5.10520076751709, 5.511743545532227), (5.017252445220947, 5.037381649017334))"
+          }
+        ],
+        "edges": [
+          {
+            "source": "start",
+            "target": "seq1",
+            "safe": "true"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "status": "ok",
+    "case": "goal_trap",
+    "fault_type": "goal_trap",
+    "severity": 1.0,
+    "seed": 3,
+    "learner": "ppo",
+    "method": "dirl",
+    "expected_operator": "seq",
+    "actual_operator": "seq",
+    "first_committed_operator": "seq",
+    "fault_trigger_operator": "seq",
+    "fault_trigger_edge": [
+      "start",
+      "goal"
+    ],
+    "expected_operator_used": true,
+    "operator_correct": true,
+    "outcome_category": "correct_operator_inexact_repair",
+    "refinement_possible": true,
+    "evidence_reason": "both reachable and unreachable target samples available",
+    "baseline_reached_trajectories": 52,
+    "baseline_successful_trajectories": 52,
+    "baseline_failed_trajectories": 48,
+    "baseline_unsafe_trajectories": 0,
+    "baseline_unsafe_reached_trajectories": 0,
+    "baseline_affected_edge_probability": 0.52,
+    "committed_operators": [
+      "seq"
+    ],
+    "operators_examined": [
+      {
+        "source": "start",
+        "target": "goal",
+        "operators_tried": [
+          "seq"
+        ],
+        "committed_operator": "seq",
+        "success_before": 0.52,
+        "success_after": 1.0,
+        "is_fault_trigger": true
+      }
+    ],
+    "initial_best_path_success": 0.52,
+    "final_best_path_success": 1.0,
+    "best_path_improvement": 0.48,
+    "initial_edge_success": [
+      {
+        "source": "start",
+        "target": "goal",
+        "probability": 0.52
+      }
+    ],
+    "final_edge_success": [
+      {
+        "source": "start",
+        "target": "seq1",
+        "probability": 1.0
+      }
+    ],
+    "recovery": {
+      "metric_type": "target_region",
+      "baseline_iou": 0.5,
+      "repaired_iou": 0.6,
+      "iou_improvement": 0.09999999999999998,
+      "normalized_recovery_gain": 0.19999999999999996,
+      "baseline_precision": 0.5,
+      "baseline_recall": 1.0,
+      "repaired_precision": 1.0,
+      "repaired_recall": 0.6,
+      "baseline_weighted_iou": 1.0,
+      "repaired_weighted_iou": 1.0,
+      "weighted_iou_improvement": 0.0,
+      "subset_fraction": 1.0,
+      "normalized_graph_edit_distance": 1.0,
+      "graph_similarity": null,
+      "missing_edge_recovered": null,
+      "topology_recovered": null,
+      "recovered": false,
+      "recovery_reason": "repair removed wrong states but over-shrank the correct region"
+    },
+    "cost": {
+      "wall_clock_seconds": 391.5286638999969,
+      "train_edge_calls": 3,
+      "continue_edge_calls": 0,
+      "estimate_calls": 3,
+      "requested_training_steps": 240000,
+      "evaluation_rollouts": 300
+    },
+    "config": {
+      "threshold": 0.8,
+      "budget": 80000,
+      "n_rollouts": 100,
+      "avoid_tail_length": 1,
+      "quality_threshold": 0.8,
+      "grid_resolution": 121
+    },
+    "fault": {
+      "description": "Broadened vertex 'goal' with an unreachable target region.",
+      "affected_vertex": "goal",
+      "affected_edge": null
+    },
+    "graphs": {
+      "correct": {
+        "source": "start",
+        "target": "goal",
+        "vertices": [
+          {
+            "name": "start",
+            "region": "Rect(1, 1, 3.5, 3.5)"
+          },
+          {
+            "name": "goal",
+            "region": "Rect(5, 4.5, 7, 6.5)"
+          }
+        ],
+        "edges": [
+          {
+            "source": "start",
+            "target": "goal",
+            "safe": "true"
+          }
+        ]
+      },
+      "faulty": {
+        "source": "start",
+        "target": "goal",
+        "vertices": [
+          {
+            "name": "start",
+            "region": "Rect(1, 1, 3.5, 3.5)"
+          },
+          {
+            "name": "goal",
+            "region": "Rect(5, 4.5, 7, 6.5) ∨ Rect(9, 4.5, 11, 6.5)"
+          }
+        ],
+        "edges": [
+          {
+            "source": "start",
+            "target": "goal",
+            "safe": "true"
+          }
+        ]
+      },
+      "repaired": {
+        "source": "start",
+        "target": "seq1",
+        "vertices": [
+          {
+            "name": "start",
+            "region": "Rect(1, 1, 3.5, 3.5)"
+          },
+          {
+            "name": "goal",
+            "region": "Rect(5, 4.5, 7, 6.5) ∨ Rect(9, 4.5, 11, 6.5)"
+          },
+          {
+            "name": "seq1",
+            "region": "(Rect(5, 4.5, 7, 6.5) ∨ Rect(9, 4.5, 11, 6.5)) ∧ Hull((5.129971981048584, 4.521599769592285), (6.18715763092041, 4.540470600128174), (6.616302490234375, 4.551630973815918), (6.944008827209473, 4.896426677703857), (6.245317459106445, 6.2827982902526855), (5.291634559631348, 6.415215492248535), (5.156532287597656, 5.311220645904541))"
+          }
+        ],
+        "edges": [
+          {
+            "source": "start",
+            "target": "seq1",
+            "safe": "true"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "status": "ok",
+    "case": "goal_trap",
+    "fault_type": "goal_trap",
+    "severity": 1.0,
+    "seed": 4,
+    "learner": "ppo",
+    "method": "dirl",
+    "expected_operator": "seq",
+    "actual_operator": "seq",
+    "first_committed_operator": "seq",
+    "fault_trigger_operator": "seq",
+    "fault_trigger_edge": [
+      "start",
+      "goal"
+    ],
+    "expected_operator_used": true,
+    "operator_correct": true,
+    "outcome_category": "correct_operator_inexact_repair",
+    "refinement_possible": true,
+    "evidence_reason": "both reachable and unreachable target samples available",
+    "baseline_reached_trajectories": 45,
+    "baseline_successful_trajectories": 45,
+    "baseline_failed_trajectories": 55,
+    "baseline_unsafe_trajectories": 0,
+    "baseline_unsafe_reached_trajectories": 0,
+    "baseline_affected_edge_probability": 0.45,
+    "committed_operators": [
+      "seq"
+    ],
+    "operators_examined": [
+      {
+        "source": "start",
+        "target": "goal",
+        "operators_tried": [
+          "seq"
+        ],
+        "committed_operator": "seq",
+        "success_before": 0.45,
+        "success_after": 1.0,
+        "is_fault_trigger": true
+      }
+    ],
+    "initial_best_path_success": 0.45,
+    "final_best_path_success": 1.0,
+    "best_path_improvement": 0.55,
+    "initial_edge_success": [
+      {
+        "source": "start",
+        "target": "goal",
+        "probability": 0.45
+      }
+    ],
+    "final_edge_success": [
+      {
+        "source": "start",
+        "target": "seq1",
+        "probability": 1.0
+      }
+    ],
+    "recovery": {
+      "metric_type": "target_region",
+      "baseline_iou": 0.5,
+      "repaired_iou": 0.5909090909090909,
+      "iou_improvement": 0.09090909090909094,
+      "normalized_recovery_gain": 0.18181818181818188,
+      "baseline_precision": 0.5,
+      "baseline_recall": 1.0,
+      "repaired_precision": 1.0,
+      "repaired_recall": 0.5909090909090909,
+      "baseline_weighted_iou": 1.0,
+      "repaired_weighted_iou": 1.0,
+      "weighted_iou_improvement": 0.0,
+      "subset_fraction": 1.0,
+      "normalized_graph_edit_distance": 1.0,
+      "graph_similarity": null,
+      "missing_edge_recovered": null,
+      "topology_recovered": null,
+      "recovered": false,
+      "recovery_reason": "repair removed wrong states but over-shrank the correct region"
+    },
+    "cost": {
+      "wall_clock_seconds": 389.68367900000885,
+      "train_edge_calls": 3,
+      "continue_edge_calls": 0,
+      "estimate_calls": 3,
+      "requested_training_steps": 240000,
+      "evaluation_rollouts": 300
+    },
+    "config": {
+      "threshold": 0.8,
+      "budget": 80000,
+      "n_rollouts": 100,
+      "avoid_tail_length": 1,
+      "quality_threshold": 0.8,
+      "grid_resolution": 121
+    },
+    "fault": {
+      "description": "Broadened vertex 'goal' with an unreachable target region.",
+      "affected_vertex": "goal",
+      "affected_edge": null
+    },
+    "graphs": {
+      "correct": {
+        "source": "start",
+        "target": "goal",
+        "vertices": [
+          {
+            "name": "start",
+            "region": "Rect(1, 1, 3.5, 3.5)"
+          },
+          {
+            "name": "goal",
+            "region": "Rect(5, 4.5, 7, 6.5)"
+          }
+        ],
+        "edges": [
+          {
+            "source": "start",
+            "target": "goal",
+            "safe": "true"
+          }
+        ]
+      },
+      "faulty": {
+        "source": "start",
+        "target": "goal",
+        "vertices": [
+          {
+            "name": "start",
+            "region": "Rect(1, 1, 3.5, 3.5)"
+          },
+          {
+            "name": "goal",
+            "region": "Rect(5, 4.5, 7, 6.5) ∨ Rect(9, 4.5, 11, 6.5)"
+          }
+        ],
+        "edges": [
+          {
+            "source": "start",
+            "target": "goal",
+            "safe": "true"
+          }
+        ]
+      },
+      "repaired": {
+        "source": "start",
+        "target": "seq1",
+        "vertices": [
+          {
+            "name": "start",
+            "region": "Rect(1, 1, 3.5, 3.5)"
+          },
+          {
+            "name": "goal",
+            "region": "Rect(5, 4.5, 7, 6.5) ∨ Rect(9, 4.5, 11, 6.5)"
+          },
+          {
+            "name": "seq1",
+            "region": "(Rect(5, 4.5, 7, 6.5) ∨ Rect(9, 4.5, 11, 6.5)) ∧ Hull((5.046038627624512, 4.58015775680542), (5.912063121795654, 4.52372932434082), (6.121627330780029, 4.6245012283325195), (6.865634918212891, 5.069647312164307), (6.93959379196167, 5.183828830718994), (6.982616901397705, 5.614172458648682), (6.917854309082031, 5.780648708343506), (6.590999126434326, 6.120134353637695), (6.262272357940674, 6.300973415374756), (5.94498872756958, 6.408942699432373), (5.1948394775390625, 5.630258560180664), (5.094335079193115, 5.083601474761963))"
+          }
+        ],
+        "edges": [
+          {
+            "source": "start",
+            "target": "seq1",
+            "safe": "true"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "status": "ok",
+    "case": "overwide_safety",
+    "fault_type": "overwide_safety",
+    "severity": 1.0,
+    "seed": 0,
+    "learner": "ppo",
+    "method": "dirl",
+    "expected_operator": "seq",
+    "actual_operator": "seq",
+    "first_committed_operator": "seq",
+    "fault_trigger_operator": "seq",
+    "fault_trigger_edge": [
+      "start",
+      "goal"
+    ],
+    "expected_operator_used": true,
+    "operator_correct": true,
+    "outcome_category": "correct_operator_inexact_repair",
+    "refinement_possible": true,
+    "evidence_reason": "unsafe trajectory tails available",
+    "baseline_reached_trajectories": 36,
+    "baseline_successful_trajectories": 36,
+    "baseline_failed_trajectories": 64,
+    "baseline_unsafe_trajectories": 64,
+    "baseline_unsafe_reached_trajectories": 0,
+    "baseline_affected_edge_probability": 0.36,
+    "committed_operators": [
+      "seq"
+    ],
+    "operators_examined": [
+      {
+        "source": "start",
+        "target": "goal",
+        "operators_tried": [
+          "seq"
+        ],
+        "committed_operator": "seq",
+        "success_before": 0.36,
+        "success_after": 1.0,
+        "is_fault_trigger": true
+      }
+    ],
+    "initial_best_path_success": 0.36,
+    "final_best_path_success": 1.0,
+    "best_path_improvement": 0.64,
+    "initial_edge_success": [
+      {
+        "source": "start",
+        "target": "goal",
+        "probability": 0.36
+      }
+    ],
+    "final_edge_success": [
+      {
+        "source": "start",
+        "target": "seq1",
+        "probability": 1.0
+      }
+    ],
+    "recovery": {
+      "metric_type": "safe_region",
+      "baseline_iou": 0.9975411515606858,
+      "repaired_iou": 0.9993841521828384,
+      "iou_improvement": 0.0018430006221525908,
+      "normalized_recovery_gain": 0.749538114137127,
+      "baseline_precision": 0.9975411515606858,
+      "baseline_recall": 1.0,
+      "repaired_precision": 0.9993841521828384,
+      "repaired_recall": 1.0,
+      "baseline_weighted_iou": 0.7584905660377359,
+      "repaired_weighted_iou": 1.0,
+      "weighted_iou_improvement": 0.2415094339622641,
+      "subset_fraction": 1.0,
+      "normalized_graph_edit_distance": 1.0,
+      "graph_similarity": null,
+      "missing_edge_recovered": null,
+      "topology_recovered": null,
+      "recovered": false,
+      "recovery_reason": "partial predicate recovery below the configured quality threshold"
+    },
+    "cost": {
+      "wall_clock_seconds": 381.087875000012,
+      "train_edge_calls": 3,
+      "continue_edge_calls": 0,
+      "estimate_calls": 3,
+      "requested_training_steps": 240000,
+      "evaluation_rollouts": 300
+    },
+    "config": {
+      "threshold": 0.8,
+      "budget": 80000,
+      "n_rollouts": 100,
+      "avoid_tail_length": 1,
+      "quality_threshold": 0.8,
+      "grid_resolution": 121
+    },
+    "fault": {
+      "description": "Broadened safe region on edge 'start'->'goal'.",
+      "affected_vertex": null,
+      "affected_edge": [
+        "start",
+        "goal"
+      ]
+    },
+    "graphs": {
+      "correct": {
+        "source": "start",
+        "target": "goal",
+        "vertices": [
+          {
+            "name": "start",
+            "region": "Rect(1, 3.25, 2, 4.75)"
+          },
+          {
+            "name": "goal",
+            "region": "Rect(6, 3.25, 7, 4.75)"
+          }
+        ],
+        "edges": [
+          {
+            "source": "start",
+            "target": "goal",
+            "safe": "¬Rect(3, 3.75, 5.2, 4.25)"
+          }
+        ]
+      },
+      "faulty": {
+        "source": "start",
+        "target": "goal",
+        "vertices": [
+          {
+            "name": "start",
+            "region": "Rect(1, 3.25, 2, 4.75)"
+          },
+          {
+            "name": "goal",
+            "region": "Rect(6, 3.25, 7, 4.75)"
+          }
+        ],
+        "edges": [
+          {
+            "source": "start",
+            "target": "goal",
+            "safe": "¬Rect(3, 3.75, 5.2, 4.25) ∨ Rect(3, 3.75, 5.2, 4.25)"
+          }
+        ]
+      },
+      "repaired": {
+        "source": "start",
+        "target": "seq1",
+        "vertices": [
+          {
+            "name": "start",
+            "region": "Rect(1, 3.25, 2, 4.75)"
+          },
+          {
+            "name": "goal",
+            "region": "Rect(6, 3.25, 7, 4.75)"
+          },
+          {
+            "name": "seq1",
+            "region": "Rect(6, 3.25, 7, 4.75) ∧ Hull((6.126057147979736, 3.3521318435668945), (6.87331485748291, 3.357830286026001), (6.948453426361084, 3.7700252532958984), (6.9234747886657715, 4.10045051574707), (6.8197455406188965, 4.6732659339904785), (6.603434085845947, 4.585411071777344))"
+          }
+        ],
+        "edges": [
+          {
+            "source": "start",
+            "target": "seq1",
+            "safe": "(¬Rect(3, 3.75, 5.2, 4.25) ∨ Rect(3, 3.75, 5.2, 4.25)) ∧ ¬Hull((3.0149381160736084, 3.759789228439331), (3.934281826019287, 3.7603535652160645), (4.989924430847168, 3.7924437522888184), (5.087704658508301, 3.796133518218994), (5.11820125579834, 4.180728912353516), (3.2466671466827393, 4.231135368347168), (3.0517220497131348, 4.185644149780273))"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "status": "ok",
+    "case": "overwide_safety",
+    "fault_type": "overwide_safety",
+    "severity": 1.0,
+    "seed": 1,
+    "learner": "ppo",
+    "method": "dirl",
+    "expected_operator": "seq",
+    "actual_operator": "seq",
+    "first_committed_operator": "seq",
+    "fault_trigger_operator": "seq",
+    "fault_trigger_edge": [
+      "start",
+      "goal"
+    ],
+    "expected_operator_used": true,
+    "operator_correct": true,
+    "outcome_category": "correct_operator_and_recovery",
+    "refinement_possible": true,
+    "evidence_reason": "unsafe trajectory tails available",
+    "baseline_reached_trajectories": 48,
+    "baseline_successful_trajectories": 48,
+    "baseline_failed_trajectories": 52,
+    "baseline_unsafe_trajectories": 52,
+    "baseline_unsafe_reached_trajectories": 0,
+    "baseline_affected_edge_probability": 0.48,
+    "committed_operators": [
+      "seq"
+    ],
+    "operators_examined": [
+      {
+        "source": "start",
+        "target": "goal",
+        "operators_tried": [
+          "seq"
+        ],
+        "committed_operator": "seq",
+        "success_before": 0.48,
+        "success_after": 1.0,
+        "is_fault_trigger": true
+      }
+    ],
+    "initial_best_path_success": 0.48,
+    "final_best_path_success": 1.0,
+    "best_path_improvement": 0.52,
+    "initial_edge_success": [
+      {
+        "source": "start",
+        "target": "goal",
+        "probability": 0.48
+      }
+    ],
+    "final_edge_success": [
+      {
+        "source": "start",
+        "target": "seq1",
+        "probability": 1.0
+      }
+    ],
+    "recovery": {
+      "metric_type": "safe_region",
+      "baseline_iou": 0.9975411515606858,
+      "repaired_iou": 0.9995893504893574,
+      "iou_improvement": 0.002048198928671585,
+      "normalized_recovery_gain": 0.8329911254078118,
+      "baseline_precision": 0.9975411515606858,
+      "baseline_recall": 1.0,
+      "repaired_precision": 0.9995893504893574,
+      "repaired_recall": 1.0,
+      "baseline_weighted_iou": 0.8149466192170819,
+      "repaired_weighted_iou": 1.0,
+      "weighted_iou_improvement": 0.1850533807829181,
+      "subset_fraction": 1.0,
+      "normalized_graph_edit_distance": 1.0,
+      "graph_similarity": null,
+      "missing_edge_recovered": null,
+      "topology_recovered": null,
+      "recovered": true,
+      "recovery_reason": "predicate recovered most of the injected geometric error"
+    },
+    "cost": {
+      "wall_clock_seconds": 394.46270269999513,
+      "train_edge_calls": 3,
+      "continue_edge_calls": 0,
+      "estimate_calls": 3,
+      "requested_training_steps": 240000,
+      "evaluation_rollouts": 300
+    },
+    "config": {
+      "threshold": 0.8,
+      "budget": 80000,
+      "n_rollouts": 100,
+      "avoid_tail_length": 1,
+      "quality_threshold": 0.8,
+      "grid_resolution": 121
+    },
+    "fault": {
+      "description": "Broadened safe region on edge 'start'->'goal'.",
+      "affected_vertex": null,
+      "affected_edge": [
+        "start",
+        "goal"
+      ]
+    },
+    "graphs": {
+      "correct": {
+        "source": "start",
+        "target": "goal",
+        "vertices": [
+          {
+            "name": "start",
+            "region": "Rect(1, 3.25, 2, 4.75)"
+          },
+          {
+            "name": "goal",
+            "region": "Rect(6, 3.25, 7, 4.75)"
+          }
+        ],
+        "edges": [
+          {
+            "source": "start",
+            "target": "goal",
+            "safe": "¬Rect(3, 3.75, 5.2, 4.25)"
+          }
+        ]
+      },
+      "faulty": {
+        "source": "start",
+        "target": "goal",
+        "vertices": [
+          {
+            "name": "start",
+            "region": "Rect(1, 3.25, 2, 4.75)"
+          },
+          {
+            "name": "goal",
+            "region": "Rect(6, 3.25, 7, 4.75)"
+          }
+        ],
+        "edges": [
+          {
+            "source": "start",
+            "target": "goal",
+            "safe": "¬Rect(3, 3.75, 5.2, 4.25) ∨ Rect(3, 3.75, 5.2, 4.25)"
+          }
+        ]
+      },
+      "repaired": {
+        "source": "start",
+        "target": "seq1",
+        "vertices": [
+          {
+            "name": "start",
+            "region": "Rect(1, 3.25, 2, 4.75)"
+          },
+          {
+            "name": "goal",
+            "region": "Rect(6, 3.25, 7, 4.75)"
+          },
+          {
+            "name": "seq1",
+            "region": "Rect(6, 3.25, 7, 4.75) ∧ Hull((6.487418174743652, 3.5702149868011475), (6.826846122741699, 3.5502092838287354), (6.976284503936768, 4.362342357635498), (6.949101448059082, 4.516765594482422), (6.896356582641602, 4.602945327758789), (6.741499423980713, 4.729089260101318), (6.519516468048096, 4.582665920257568))"
+          }
+        ],
+        "edges": [
+          {
+            "source": "start",
+            "target": "seq1",
+            "safe": "(¬Rect(3, 3.75, 5.2, 4.25) ∨ Rect(3, 3.75, 5.2, 4.25)) ∧ ¬Hull((3.0246477127075195, 3.9225800037384033), (3.083852767944336, 3.820737361907959), (3.201122999191284, 3.7928404808044434), (3.337538003921509, 3.764394998550415), (5.199162006378174, 3.7980690002441406), (5.110457420349121, 4.2441086769104), (3.133089780807495, 4.247344493865967), (3.082548141479492, 4.18596887588501), (3.052229881286621, 4.110254287719727))"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "status": "ok",
+    "case": "overwide_safety",
+    "fault_type": "overwide_safety",
+    "severity": 1.0,
+    "seed": 2,
+    "learner": "ppo",
+    "method": "dirl",
+    "expected_operator": "seq",
+    "actual_operator": "seq",
+    "first_committed_operator": "seq",
+    "fault_trigger_operator": "seq",
+    "fault_trigger_edge": [
+      "start",
+      "goal"
+    ],
+    "expected_operator_used": true,
+    "operator_correct": true,
+    "outcome_category": "correct_operator_inexact_repair",
+    "refinement_possible": true,
+    "evidence_reason": "unsafe trajectory tails available",
+    "baseline_reached_trajectories": 38,
+    "baseline_successful_trajectories": 38,
+    "baseline_failed_trajectories": 62,
+    "baseline_unsafe_trajectories": 62,
+    "baseline_unsafe_reached_trajectories": 0,
+    "baseline_affected_edge_probability": 0.38,
+    "committed_operators": [
+      "seq"
+    ],
+    "operators_examined": [
+      {
+        "source": "start",
+        "target": "goal",
+        "operators_tried": [
+          "seq"
+        ],
+        "committed_operator": "seq",
+        "success_before": 0.38,
+        "success_after": 1.0,
+        "is_fault_trigger": true
+      }
+    ],
+    "initial_best_path_success": 0.38,
+    "final_best_path_success": 1.0,
+    "best_path_improvement": 0.62,
+    "initial_edge_success": [
+      {
+        "source": "start",
+        "target": "goal",
+        "probability": 0.38
+      }
+    ],
+    "final_edge_success": [
+      {
+        "source": "start",
+        "target": "seq1",
+        "probability": 1.0
+      }
+    ],
+    "recovery": {
+      "metric_type": "safe_region",
+      "baseline_iou": 0.9975411515606858,
+      "repaired_iou": 0.9989056836057725,
+      "iou_improvement": 0.001364532045086686,
+      "normalized_recovery_gain": 0.5549476020031815,
+      "baseline_precision": 0.9975411515606858,
+      "baseline_recall": 1.0,
+      "repaired_precision": 0.9989056836057725,
+      "repaired_recall": 1.0,
+      "baseline_weighted_iou": 0.7633587786259542,
+      "repaired_weighted_iou": 1.0,
+      "weighted_iou_improvement": 0.23664122137404575,
+      "subset_fraction": 1.0,
+      "normalized_graph_edit_distance": 1.0,
+      "graph_similarity": null,
+      "missing_edge_recovered": null,
+      "topology_recovered": null,
+      "recovered": false,
+      "recovery_reason": "partial predicate recovery below the configured quality threshold"
+    },
+    "cost": {
+      "wall_clock_seconds": 396.15511739999056,
+      "train_edge_calls": 3,
+      "continue_edge_calls": 0,
+      "estimate_calls": 3,
+      "requested_training_steps": 240000,
+      "evaluation_rollouts": 300
+    },
+    "config": {
+      "threshold": 0.8,
+      "budget": 80000,
+      "n_rollouts": 100,
+      "avoid_tail_length": 1,
+      "quality_threshold": 0.8,
+      "grid_resolution": 121
+    },
+    "fault": {
+      "description": "Broadened safe region on edge 'start'->'goal'.",
+      "affected_vertex": null,
+      "affected_edge": [
+        "start",
+        "goal"
+      ]
+    },
+    "graphs": {
+      "correct": {
+        "source": "start",
+        "target": "goal",
+        "vertices": [
+          {
+            "name": "start",
+            "region": "Rect(1, 3.25, 2, 4.75)"
+          },
+          {
+            "name": "goal",
+            "region": "Rect(6, 3.25, 7, 4.75)"
+          }
+        ],
+        "edges": [
+          {
+            "source": "start",
+            "target": "goal",
+            "safe": "¬Rect(3, 3.75, 5.2, 4.25)"
+          }
+        ]
+      },
+      "faulty": {
+        "source": "start",
+        "target": "goal",
+        "vertices": [
+          {
+            "name": "start",
+            "region": "Rect(1, 3.25, 2, 4.75)"
+          },
+          {
+            "name": "goal",
+            "region": "Rect(6, 3.25, 7, 4.75)"
+          }
+        ],
+        "edges": [
+          {
+            "source": "start",
+            "target": "goal",
+            "safe": "¬Rect(3, 3.75, 5.2, 4.25) ∨ Rect(3, 3.75, 5.2, 4.25)"
+          }
+        ]
+      },
+      "repaired": {
+        "source": "start",
+        "target": "seq1",
+        "vertices": [
+          {
+            "name": "start",
+            "region": "Rect(1, 3.25, 2, 4.75)"
+          },
+          {
+            "name": "goal",
+            "region": "Rect(6, 3.25, 7, 4.75)"
+          },
+          {
+            "name": "seq1",
+            "region": "Rect(6, 3.25, 7, 4.75) ∧ Hull((6.193048477172852, 4.748212814331055), (6.416418075561523, 3.6326184272766113), (6.817498683929443, 3.380305528640747), (6.977899074554443, 3.5471646785736084), (6.912814617156982, 4.413414478302002), (6.720091819763184, 4.675705432891846), (6.666845321655273, 4.708966255187988))"
+          }
+        ],
+        "edges": [
+          {
+            "source": "start",
+            "target": "seq1",
+            "safe": "(¬Rect(3, 3.75, 5.2, 4.25) ∨ Rect(3, 3.75, 5.2, 4.25)) ∧ ¬Hull((3.026496410369873, 3.984168529510498), (3.0331597328186035, 3.857151985168457), (3.106605052947998, 3.7543275356292725), (3.9385392665863037, 3.785723924636841), (5.1782355308532715, 3.84720516204834), (5.19690465927124, 4.038944244384766), (3.845547676086426, 4.22175407409668), (3.742142677307129, 4.229742527008057), (3.461331844329834, 4.241408348083496), (3.2630417346954346, 4.198498725891113))"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "status": "ok",
+    "case": "overwide_safety",
+    "fault_type": "overwide_safety",
+    "severity": 1.0,
+    "seed": 3,
+    "learner": "ppo",
+    "method": "dirl",
+    "expected_operator": "seq",
+    "actual_operator": "seq",
+    "first_committed_operator": "seq",
+    "fault_trigger_operator": "seq",
+    "fault_trigger_edge": [
+      "start",
+      "goal"
+    ],
+    "expected_operator_used": true,
+    "operator_correct": true,
+    "outcome_category": "correct_operator_inexact_repair",
+    "refinement_possible": true,
+    "evidence_reason": "unsafe trajectory tails available",
+    "baseline_reached_trajectories": 55,
+    "baseline_successful_trajectories": 55,
+    "baseline_failed_trajectories": 45,
+    "baseline_unsafe_trajectories": 45,
+    "baseline_unsafe_reached_trajectories": 0,
+    "baseline_affected_edge_probability": 0.55,
+    "committed_operators": [
+      "seq"
+    ],
+    "operators_examined": [
+      {
+        "source": "start",
+        "target": "goal",
+        "operators_tried": [
+          "seq"
+        ],
+        "committed_operator": "seq",
+        "success_before": 0.55,
+        "success_after": 1.0,
+        "is_fault_trigger": true
+      }
+    ],
+    "initial_best_path_success": 0.55,
+    "final_best_path_success": 1.0,
+    "best_path_improvement": 0.44999999999999996,
+    "initial_edge_success": [
+      {
+        "source": "start",
+        "target": "goal",
+        "probability": 0.55
+      }
+    ],
+    "final_edge_success": [
+      {
+        "source": "start",
+        "target": "seq1",
+        "probability": 1.0
+      }
+    ],
+    "recovery": {
+      "metric_type": "safe_region",
+      "baseline_iou": 0.9975411515606858,
+      "repaired_iou": 0.9987007658643327,
+      "iou_improvement": 0.001159614303646861,
+      "normalized_recovery_gain": 0.4716086949915,
+      "baseline_precision": 0.9975411515606858,
+      "baseline_recall": 1.0,
+      "repaired_precision": 0.9987007658643327,
+      "repaired_recall": 1.0,
+      "baseline_weighted_iou": 0.8426573426573427,
+      "repaired_weighted_iou": 1.0,
+      "weighted_iou_improvement": 0.1573426573426573,
+      "subset_fraction": 1.0,
+      "normalized_graph_edit_distance": 1.0,
+      "graph_similarity": null,
+      "missing_edge_recovered": null,
+      "topology_recovered": null,
+      "recovered": false,
+      "recovery_reason": "partial predicate recovery below the configured quality threshold"
+    },
+    "cost": {
+      "wall_clock_seconds": 396.773660699997,
+      "train_edge_calls": 3,
+      "continue_edge_calls": 0,
+      "estimate_calls": 3,
+      "requested_training_steps": 240000,
+      "evaluation_rollouts": 300
+    },
+    "config": {
+      "threshold": 0.8,
+      "budget": 80000,
+      "n_rollouts": 100,
+      "avoid_tail_length": 1,
+      "quality_threshold": 0.8,
+      "grid_resolution": 121
+    },
+    "fault": {
+      "description": "Broadened safe region on edge 'start'->'goal'.",
+      "affected_vertex": null,
+      "affected_edge": [
+        "start",
+        "goal"
+      ]
+    },
+    "graphs": {
+      "correct": {
+        "source": "start",
+        "target": "goal",
+        "vertices": [
+          {
+            "name": "start",
+            "region": "Rect(1, 3.25, 2, 4.75)"
+          },
+          {
+            "name": "goal",
+            "region": "Rect(6, 3.25, 7, 4.75)"
+          }
+        ],
+        "edges": [
+          {
+            "source": "start",
+            "target": "goal",
+            "safe": "¬Rect(3, 3.75, 5.2, 4.25)"
+          }
+        ]
+      },
+      "faulty": {
+        "source": "start",
+        "target": "goal",
+        "vertices": [
+          {
+            "name": "start",
+            "region": "Rect(1, 3.25, 2, 4.75)"
+          },
+          {
+            "name": "goal",
+            "region": "Rect(6, 3.25, 7, 4.75)"
+          }
+        ],
+        "edges": [
+          {
+            "source": "start",
+            "target": "goal",
+            "safe": "¬Rect(3, 3.75, 5.2, 4.25) ∨ Rect(3, 3.75, 5.2, 4.25)"
+          }
+        ]
+      },
+      "repaired": {
+        "source": "start",
+        "target": "seq1",
+        "vertices": [
+          {
+            "name": "start",
+            "region": "Rect(1, 3.25, 2, 4.75)"
+          },
+          {
+            "name": "goal",
+            "region": "Rect(6, 3.25, 7, 4.75)"
+          },
+          {
+            "name": "seq1",
+            "region": "Rect(6, 3.25, 7, 4.75) ∧ Hull((6.372786998748779, 3.4873595237731934), (6.597474575042725, 3.4092655181884766), (6.8477373123168945, 3.4742658138275146), (6.988496780395508, 3.7440335750579834), (6.987001895904541, 4.477695465087891), (6.776398181915283, 4.52841329574585), (6.618325710296631, 4.474176406860352))"
+          }
+        ],
+        "edges": [
+          {
+            "source": "start",
+            "target": "seq1",
+            "safe": "(¬Rect(3, 3.75, 5.2, 4.25) ∨ Rect(3, 3.75, 5.2, 4.25)) ∧ ¬Hull((3.047679901123047, 4.061583042144775), (3.1027448177337646, 3.9463605880737305), (3.1985535621643066, 3.7514877319335938), (3.967350482940674, 3.778240203857422), (5.138232707977295, 4.128421306610107), (3.237720012664795, 4.231818675994873), (3.1803088188171387, 4.210977554321289), (3.049712896347046, 4.065998077392578))"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "status": "ok",
+    "case": "overwide_safety",
+    "fault_type": "overwide_safety",
+    "severity": 1.0,
+    "seed": 4,
+    "learner": "ppo",
+    "method": "dirl",
+    "expected_operator": "seq",
+    "actual_operator": "seq",
+    "first_committed_operator": "seq",
+    "fault_trigger_operator": "seq",
+    "fault_trigger_edge": [
+      "start",
+      "goal"
+    ],
+    "expected_operator_used": true,
+    "operator_correct": true,
+    "outcome_category": "correct_operator_inexact_repair",
+    "refinement_possible": true,
+    "evidence_reason": "unsafe trajectory tails available",
+    "baseline_reached_trajectories": 43,
+    "baseline_successful_trajectories": 43,
+    "baseline_failed_trajectories": 57,
+    "baseline_unsafe_trajectories": 57,
+    "baseline_unsafe_reached_trajectories": 0,
+    "baseline_affected_edge_probability": 0.43,
+    "committed_operators": [
+      "seq"
+    ],
+    "operators_examined": [
+      {
+        "source": "start",
+        "target": "goal",
+        "operators_tried": [
+          "seq"
+        ],
+        "committed_operator": "seq",
+        "success_before": 0.43,
+        "success_after": 1.0,
+        "is_fault_trigger": true
+      }
+    ],
+    "initial_best_path_success": 0.43,
+    "final_best_path_success": 1.0,
+    "best_path_improvement": 0.5700000000000001,
+    "initial_edge_success": [
+      {
+        "source": "start",
+        "target": "goal",
+        "probability": 0.43
+      }
+    ],
+    "final_edge_success": [
+      {
+        "source": "start",
+        "target": "seq1",
+        "probability": 1.0
+      }
+    ],
+    "recovery": {
+      "metric_type": "safe_region",
+      "baseline_iou": 0.9975411515606858,
+      "repaired_iou": 0.9991106854562868,
+      "iou_improvement": 0.001569533895600994,
+      "normalized_recovery_gain": 0.6383207157081826,
+      "baseline_precision": 0.9975411515606858,
+      "baseline_recall": 1.0,
+      "repaired_precision": 0.9991106854562868,
+      "repaired_recall": 1.0,
+      "baseline_weighted_iou": 0.7912087912087912,
+      "repaired_weighted_iou": 1.0,
+      "weighted_iou_improvement": 0.20879120879120883,
+      "subset_fraction": 1.0,
+      "normalized_graph_edit_distance": 1.0,
+      "graph_similarity": null,
+      "missing_edge_recovered": null,
+      "topology_recovered": null,
+      "recovered": false,
+      "recovery_reason": "partial predicate recovery below the configured quality threshold"
+    },
+    "cost": {
+      "wall_clock_seconds": 372.5594385000004,
+      "train_edge_calls": 3,
+      "continue_edge_calls": 0,
+      "estimate_calls": 3,
+      "requested_training_steps": 240000,
+      "evaluation_rollouts": 300
+    },
+    "config": {
+      "threshold": 0.8,
+      "budget": 80000,
+      "n_rollouts": 100,
+      "avoid_tail_length": 1,
+      "quality_threshold": 0.8,
+      "grid_resolution": 121
+    },
+    "fault": {
+      "description": "Broadened safe region on edge 'start'->'goal'.",
+      "affected_vertex": null,
+      "affected_edge": [
+        "start",
+        "goal"
+      ]
+    },
+    "graphs": {
+      "correct": {
+        "source": "start",
+        "target": "goal",
+        "vertices": [
+          {
+            "name": "start",
+            "region": "Rect(1, 3.25, 2, 4.75)"
+          },
+          {
+            "name": "goal",
+            "region": "Rect(6, 3.25, 7, 4.75)"
+          }
+        ],
+        "edges": [
+          {
+            "source": "start",
+            "target": "goal",
+            "safe": "¬Rect(3, 3.75, 5.2, 4.25)"
+          }
+        ]
+      },
+      "faulty": {
+        "source": "start",
+        "target": "goal",
+        "vertices": [
+          {
+            "name": "start",
+            "region": "Rect(1, 3.25, 2, 4.75)"
+          },
+          {
+            "name": "goal",
+            "region": "Rect(6, 3.25, 7, 4.75)"
+          }
+        ],
+        "edges": [
+          {
+            "source": "start",
+            "target": "goal",
+            "safe": "¬Rect(3, 3.75, 5.2, 4.25) ∨ Rect(3, 3.75, 5.2, 4.25)"
+          }
+        ]
+      },
+      "repaired": {
+        "source": "start",
+        "target": "seq1",
+        "vertices": [
+          {
+            "name": "start",
+            "region": "Rect(1, 3.25, 2, 4.75)"
+          },
+          {
+            "name": "goal",
+            "region": "Rect(6, 3.25, 7, 4.75)"
+          },
+          {
+            "name": "seq1",
+            "region": "Rect(6, 3.25, 7, 4.75) ∧ Hull((6.030745983123779, 4.491943836212158), (6.478363513946533, 3.3121087551116943), (6.915771484375, 3.3207526206970215), (6.864722728729248, 4.631718158721924), (6.381722450256348, 4.650589942932129), (6.192246913909912, 4.652358055114746))"
+          }
+        ],
+        "edges": [
+          {
+            "source": "start",
+            "target": "seq1",
+            "safe": "(¬Rect(3, 3.75, 5.2, 4.25) ∨ Rect(3, 3.75, 5.2, 4.25)) ∧ ¬Hull((3.0061028003692627, 4.053417205810547), (3.0118627548217773, 3.763418436050415), (3.8892881870269775, 3.789574146270752), (5.174141883850098, 4.050726890563965), (5.185873985290527, 4.1318678855896), (5.116120338439941, 4.232228755950928), (3.9920237064361572, 4.243968963623047), (3.1746654510498047, 4.249917984008789))"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "status": "ok",
+    "case": "unreachable_start",
+    "fault_type": "unreachable_start",
+    "severity": 1.0,
+    "seed": 0,
+    "learner": "ppo",
+    "method": "dirl",
+    "expected_operator": "past",
+    "actual_operator": "past",
+    "first_committed_operator": "past",
+    "fault_trigger_operator": "past",
+    "fault_trigger_edge": [
+      "start",
+      "goal"
+    ],
+    "expected_operator_used": true,
+    "operator_correct": true,
+    "outcome_category": "correct_operator_and_recovery",
+    "refinement_possible": true,
+    "evidence_reason": "both successful and failed starts available",
+    "baseline_reached_trajectories": 57,
+    "baseline_successful_trajectories": 57,
+    "baseline_failed_trajectories": 43,
+    "baseline_unsafe_trajectories": 0,
+    "baseline_unsafe_reached_trajectories": 0,
+    "baseline_affected_edge_probability": 0.57,
+    "committed_operators": [
+      "past"
+    ],
+    "operators_examined": [
+      {
+        "source": "start",
+        "target": "goal",
+        "operators_tried": [
+          "seq",
+          "add",
+          "past"
+        ],
+        "committed_operator": "past",
+        "success_before": 0.57,
+        "success_after": 1.0,
+        "is_fault_trigger": true
+      }
+    ],
+    "initial_best_path_success": 0.57,
+    "final_best_path_success": 1.0,
+    "best_path_improvement": 0.43000000000000005,
+    "initial_edge_success": [
+      {
+        "source": "start",
+        "target": "goal",
+        "probability": 0.57
+      }
+    ],
+    "final_edge_success": [
+      {
+        "source": "start",
+        "target": "goal",
+        "probability": 1.0
+      }
+    ],
+    "recovery": {
+      "metric_type": "source_region",
+      "baseline_iou": 0.5,
+      "repaired_iou": 1.0,
+      "iou_improvement": 0.5,
+      "normalized_recovery_gain": 1.0,
+      "baseline_precision": 0.5,
+      "baseline_recall": 1.0,
+      "repaired_precision": 1.0,
+      "repaired_recall": 1.0,
+      "baseline_weighted_iou": 0.33185840707964603,
+      "repaired_weighted_iou": 1.0,
+      "weighted_iou_improvement": 0.668141592920354,
+      "subset_fraction": 1.0,
+      "normalized_graph_edit_distance": 0.0,
+      "graph_similarity": null,
+      "missing_edge_recovered": null,
+      "topology_recovered": null,
+      "recovered": true,
+      "recovery_reason": "predicate recovered most of the injected geometric error"
+    },
+    "cost": {
+      "wall_clock_seconds": 807.6120261000033,
+      "train_edge_calls": 6,
+      "continue_edge_calls": 0,
+      "estimate_calls": 6,
+      "requested_training_steps": 480000,
+      "evaluation_rollouts": 600
+    },
+    "config": {
+      "threshold": 0.8,
+      "budget": 80000,
+      "n_rollouts": 100,
+      "avoid_tail_length": 1,
+      "quality_threshold": 0.8,
+      "grid_resolution": 121
+    },
+    "fault": {
+      "description": "Broadened vertex 'start' with unreachable starting states.",
+      "affected_vertex": "start",
+      "affected_edge": null
+    },
+    "graphs": {
+      "correct": {
+        "source": "start",
+        "target": "goal",
+        "vertices": [
+          {
+            "name": "start",
+            "region": "Rect(1, 1, 3.5, 3.5)"
+          },
+          {
+            "name": "goal",
+            "region": "Rect(5, 4.5, 7, 6.5)"
+          }
+        ],
+        "edges": [
+          {
+            "source": "start",
+            "target": "goal",
+            "safe": "true"
+          }
+        ]
+      },
+      "faulty": {
+        "source": "start",
+        "target": "goal",
+        "vertices": [
+          {
+            "name": "start",
+            "region": "Rect(1, 1, 3.5, 3.5) ∨ Rect(9, 1, 11.5, 3.5)"
+          },
+          {
+            "name": "goal",
+            "region": "Rect(5, 4.5, 7, 6.5)"
+          }
+        ],
+        "edges": [
+          {
+            "source": "start",
+            "target": "goal",
+            "safe": "true"
+          }
+        ]
+      },
+      "repaired": {
+        "source": "start",
+        "target": "goal",
+        "vertices": [
+          {
+            "name": "start",
+            "region": "(Rect(1, 1, 3.5, 3.5) ∨ Rect(9, 1, 11.5, 3.5)) ∧ HalfPlane(-8.029153313796309, 0.13310225799783115, -49.426692239884076)"
+          },
+          {
+            "name": "goal",
+            "region": "Rect(5, 4.5, 7, 6.5)"
+          }
+        ],
+        "edges": [
+          {
+            "source": "start",
+            "target": "goal",
+            "safe": "true"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "status": "ok",
+    "case": "unreachable_start",
+    "fault_type": "unreachable_start",
+    "severity": 1.0,
+    "seed": 1,
+    "learner": "ppo",
+    "method": "dirl",
+    "expected_operator": "past",
+    "actual_operator": "past",
+    "first_committed_operator": "past",
+    "fault_trigger_operator": "past",
+    "fault_trigger_edge": [
+      "start",
+      "goal"
+    ],
+    "expected_operator_used": true,
+    "operator_correct": true,
+    "outcome_category": "correct_operator_and_recovery",
+    "refinement_possible": true,
+    "evidence_reason": "both successful and failed starts available",
+    "baseline_reached_trajectories": 51,
+    "baseline_successful_trajectories": 51,
+    "baseline_failed_trajectories": 49,
+    "baseline_unsafe_trajectories": 0,
+    "baseline_unsafe_reached_trajectories": 0,
+    "baseline_affected_edge_probability": 0.51,
+    "committed_operators": [
+      "past"
+    ],
+    "operators_examined": [
+      {
+        "source": "start",
+        "target": "goal",
+        "operators_tried": [
+          "seq",
+          "add",
+          "past"
+        ],
+        "committed_operator": "past",
+        "success_before": 0.51,
+        "success_after": 1.0,
+        "is_fault_trigger": true
+      }
+    ],
+    "initial_best_path_success": 0.51,
+    "final_best_path_success": 1.0,
+    "best_path_improvement": 0.49,
+    "initial_edge_success": [
+      {
+        "source": "start",
+        "target": "goal",
+        "probability": 0.51
+      }
+    ],
+    "final_edge_success": [
+      {
+        "source": "start",
+        "target": "goal",
+        "probability": 1.0
+      }
+    ],
+    "recovery": {
+      "metric_type": "source_region",
+      "baseline_iou": 0.5,
+      "repaired_iou": 1.0,
+      "iou_improvement": 0.5,
+      "normalized_recovery_gain": 1.0,
+      "baseline_precision": 0.5,
+      "baseline_recall": 1.0,
+      "repaired_precision": 1.0,
+      "repaired_recall": 1.0,
+      "baseline_weighted_iou": 0.17032967032967034,
+      "repaired_weighted_iou": 1.0,
+      "weighted_iou_improvement": 0.8296703296703296,
+      "subset_fraction": 1.0,
+      "normalized_graph_edit_distance": 0.0,
+      "graph_similarity": null,
+      "missing_edge_recovered": null,
+      "topology_recovered": null,
+      "recovered": true,
+      "recovery_reason": "predicate recovered most of the injected geometric error"
+    },
+    "cost": {
+      "wall_clock_seconds": 977.5022319999989,
+      "train_edge_calls": 6,
+      "continue_edge_calls": 0,
+      "estimate_calls": 6,
+      "requested_training_steps": 480000,
+      "evaluation_rollouts": 600
+    },
+    "config": {
+      "threshold": 0.8,
+      "budget": 80000,
+      "n_rollouts": 100,
+      "avoid_tail_length": 1,
+      "quality_threshold": 0.8,
+      "grid_resolution": 121
+    },
+    "fault": {
+      "description": "Broadened vertex 'start' with unreachable starting states.",
+      "affected_vertex": "start",
+      "affected_edge": null
+    },
+    "graphs": {
+      "correct": {
+        "source": "start",
+        "target": "goal",
+        "vertices": [
+          {
+            "name": "start",
+            "region": "Rect(1, 1, 3.5, 3.5)"
+          },
+          {
+            "name": "goal",
+            "region": "Rect(5, 4.5, 7, 6.5)"
+          }
+        ],
+        "edges": [
+          {
+            "source": "start",
+            "target": "goal",
+            "safe": "true"
+          }
+        ]
+      },
+      "faulty": {
+        "source": "start",
+        "target": "goal",
+        "vertices": [
+          {
+            "name": "start",
+            "region": "Rect(1, 1, 3.5, 3.5) ∨ Rect(9, 1, 11.5, 3.5)"
+          },
+          {
+            "name": "goal",
+            "region": "Rect(5, 4.5, 7, 6.5)"
+          }
+        ],
+        "edges": [
+          {
+            "source": "start",
+            "target": "goal",
+            "safe": "true"
+          }
+        ]
+      },
+      "repaired": {
+        "source": "start",
+        "target": "goal",
+        "vertices": [
+          {
+            "name": "start",
+            "region": "(Rect(1, 1, 3.5, 3.5) ∨ Rect(9, 1, 11.5, 3.5)) ∧ HalfPlane(-7.923073708796416, 0.19770534456420208, -49.87138804327394)"
+          },
+          {
+            "name": "goal",
+            "region": "Rect(5, 4.5, 7, 6.5)"
+          }
+        ],
+        "edges": [
+          {
+            "source": "start",
+            "target": "goal",
+            "safe": "true"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "status": "ok",
+    "case": "unreachable_start",
+    "fault_type": "unreachable_start",
+    "severity": 1.0,
+    "seed": 2,
+    "learner": "ppo",
+    "method": "dirl",
+    "expected_operator": "past",
+    "actual_operator": "past",
+    "first_committed_operator": "past",
+    "fault_trigger_operator": "past",
+    "fault_trigger_edge": [
+      "start",
+      "goal"
+    ],
+    "expected_operator_used": true,
+    "operator_correct": true,
+    "outcome_category": "correct_operator_and_recovery",
+    "refinement_possible": true,
+    "evidence_reason": "both successful and failed starts available",
+    "baseline_reached_trajectories": 53,
+    "baseline_successful_trajectories": 53,
+    "baseline_failed_trajectories": 47,
+    "baseline_unsafe_trajectories": 0,
+    "baseline_unsafe_reached_trajectories": 0,
+    "baseline_affected_edge_probability": 0.53,
+    "committed_operators": [
+      "past"
+    ],
+    "operators_examined": [
+      {
+        "source": "start",
+        "target": "goal",
+        "operators_tried": [
+          "seq",
+          "add",
+          "past"
+        ],
+        "committed_operator": "past",
+        "success_before": 0.53,
+        "success_after": 1.0,
+        "is_fault_trigger": true
+      }
+    ],
+    "initial_best_path_success": 0.53,
+    "final_best_path_success": 1.0,
+    "best_path_improvement": 0.47,
+    "initial_edge_success": [
+      {
+        "source": "start",
+        "target": "goal",
+        "probability": 0.53
+      }
+    ],
+    "final_edge_success": [
+      {
+        "source": "start",
+        "target": "goal",
+        "probability": 1.0
+      }
+    ],
+    "recovery": {
+      "metric_type": "source_region",
+      "baseline_iou": 0.5,
+      "repaired_iou": 1.0,
+      "iou_improvement": 0.5,
+      "normalized_recovery_gain": 1.0,
+      "baseline_precision": 0.5,
+      "baseline_recall": 1.0,
+      "repaired_precision": 1.0,
+      "repaired_recall": 1.0,
+      "baseline_weighted_iou": 0.1651376146788991,
+      "repaired_weighted_iou": 1.0,
+      "weighted_iou_improvement": 0.8348623853211009,
+      "subset_fraction": 1.0,
+      "normalized_graph_edit_distance": 0.0,
+      "graph_similarity": null,
+      "missing_edge_recovered": null,
+      "topology_recovered": null,
+      "recovered": true,
+      "recovery_reason": "predicate recovered most of the injected geometric error"
+    },
+    "cost": {
+      "wall_clock_seconds": 889.3586645000032,
+      "train_edge_calls": 6,
+      "continue_edge_calls": 0,
+      "estimate_calls": 6,
+      "requested_training_steps": 480000,
+      "evaluation_rollouts": 600
+    },
+    "config": {
+      "threshold": 0.8,
+      "budget": 80000,
+      "n_rollouts": 100,
+      "avoid_tail_length": 1,
+      "quality_threshold": 0.8,
+      "grid_resolution": 121
+    },
+    "fault": {
+      "description": "Broadened vertex 'start' with unreachable starting states.",
+      "affected_vertex": "start",
+      "affected_edge": null
+    },
+    "graphs": {
+      "correct": {
+        "source": "start",
+        "target": "goal",
+        "vertices": [
+          {
+            "name": "start",
+            "region": "Rect(1, 1, 3.5, 3.5)"
+          },
+          {
+            "name": "goal",
+            "region": "Rect(5, 4.5, 7, 6.5)"
+          }
+        ],
+        "edges": [
+          {
+            "source": "start",
+            "target": "goal",
+            "safe": "true"
+          }
+        ]
+      },
+      "faulty": {
+        "source": "start",
+        "target": "goal",
+        "vertices": [
+          {
+            "name": "start",
+            "region": "Rect(1, 1, 3.5, 3.5) ∨ Rect(9, 1, 11.5, 3.5)"
+          },
+          {
+            "name": "goal",
+            "region": "Rect(5, 4.5, 7, 6.5)"
+          }
+        ],
+        "edges": [
+          {
+            "source": "start",
+            "target": "goal",
+            "safe": "true"
+          }
+        ]
+      },
+      "repaired": {
+        "source": "start",
+        "target": "goal",
+        "vertices": [
+          {
+            "name": "start",
+            "region": "(Rect(1, 1, 3.5, 3.5) ∨ Rect(9, 1, 11.5, 3.5)) ∧ HalfPlane(-7.913299252019259, -0.2344140173775373, -50.712947146299875)"
+          },
+          {
+            "name": "goal",
+            "region": "Rect(5, 4.5, 7, 6.5)"
+          }
+        ],
+        "edges": [
+          {
+            "source": "start",
+            "target": "goal",
+            "safe": "true"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "status": "ok",
+    "case": "unreachable_start",
+    "fault_type": "unreachable_start",
+    "severity": 1.0,
+    "seed": 3,
+    "learner": "ppo",
+    "method": "dirl",
+    "expected_operator": "past",
+    "actual_operator": "past",
+    "first_committed_operator": "past",
+    "fault_trigger_operator": "past",
+    "fault_trigger_edge": [
+      "start",
+      "goal"
+    ],
+    "expected_operator_used": true,
+    "operator_correct": true,
+    "outcome_category": "correct_operator_and_recovery",
+    "refinement_possible": true,
+    "evidence_reason": "both successful and failed starts available",
+    "baseline_reached_trajectories": 47,
+    "baseline_successful_trajectories": 47,
+    "baseline_failed_trajectories": 53,
+    "baseline_unsafe_trajectories": 0,
+    "baseline_unsafe_reached_trajectories": 0,
+    "baseline_affected_edge_probability": 0.47,
+    "committed_operators": [
+      "past"
+    ],
+    "operators_examined": [
+      {
+        "source": "start",
+        "target": "goal",
+        "operators_tried": [
+          "seq",
+          "add",
+          "past"
+        ],
+        "committed_operator": "past",
+        "success_before": 0.47,
+        "success_after": 1.0,
+        "is_fault_trigger": true
+      }
+    ],
+    "initial_best_path_success": 0.47,
+    "final_best_path_success": 1.0,
+    "best_path_improvement": 0.53,
+    "initial_edge_success": [
+      {
+        "source": "start",
+        "target": "goal",
+        "probability": 0.47
+      }
+    ],
+    "final_edge_success": [
+      {
+        "source": "start",
+        "target": "goal",
+        "probability": 1.0
+      }
+    ],
+    "recovery": {
+      "metric_type": "source_region",
+      "baseline_iou": 0.5,
+      "repaired_iou": 1.0,
+      "iou_improvement": 0.5,
+      "normalized_recovery_gain": 1.0,
+      "baseline_precision": 0.5,
+      "baseline_recall": 1.0,
+      "repaired_precision": 1.0,
+      "repaired_recall": 1.0,
+      "baseline_weighted_iou": 0.12658227848101267,
+      "repaired_weighted_iou": 1.0,
+      "weighted_iou_improvement": 0.8734177215189873,
+      "subset_fraction": 1.0,
+      "normalized_graph_edit_distance": 0.0,
+      "graph_similarity": null,
+      "missing_edge_recovered": null,
+      "topology_recovered": null,
+      "recovered": true,
+      "recovery_reason": "predicate recovered most of the injected geometric error"
+    },
+    "cost": {
+      "wall_clock_seconds": 1423.3875914999953,
+      "train_edge_calls": 6,
+      "continue_edge_calls": 0,
+      "estimate_calls": 6,
+      "requested_training_steps": 480000,
+      "evaluation_rollouts": 600
+    },
+    "config": {
+      "threshold": 0.8,
+      "budget": 80000,
+      "n_rollouts": 100,
+      "avoid_tail_length": 1,
+      "quality_threshold": 0.8,
+      "grid_resolution": 121
+    },
+    "fault": {
+      "description": "Broadened vertex 'start' with unreachable starting states.",
+      "affected_vertex": "start",
+      "affected_edge": null
+    },
+    "graphs": {
+      "correct": {
+        "source": "start",
+        "target": "goal",
+        "vertices": [
+          {
+            "name": "start",
+            "region": "Rect(1, 1, 3.5, 3.5)"
+          },
+          {
+            "name": "goal",
+            "region": "Rect(5, 4.5, 7, 6.5)"
+          }
+        ],
+        "edges": [
+          {
+            "source": "start",
+            "target": "goal",
+            "safe": "true"
+          }
+        ]
+      },
+      "faulty": {
+        "source": "start",
+        "target": "goal",
+        "vertices": [
+          {
+            "name": "start",
+            "region": "Rect(1, 1, 3.5, 3.5) ∨ Rect(9, 1, 11.5, 3.5)"
+          },
+          {
+            "name": "goal",
+            "region": "Rect(5, 4.5, 7, 6.5)"
+          }
+        ],
+        "edges": [
+          {
+            "source": "start",
+            "target": "goal",
+            "safe": "true"
+          }
+        ]
+      },
+      "repaired": {
+        "source": "start",
+        "target": "goal",
+        "vertices": [
+          {
+            "name": "start",
+            "region": "(Rect(1, 1, 3.5, 3.5) ∨ Rect(9, 1, 11.5, 3.5)) ∧ HalfPlane(-7.935127874398892, -0.3040302576955569, -51.0029089553993)"
+          },
+          {
+            "name": "goal",
+            "region": "Rect(5, 4.5, 7, 6.5)"
+          }
+        ],
+        "edges": [
+          {
+            "source": "start",
+            "target": "goal",
+            "safe": "true"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "status": "ok",
+    "case": "unreachable_start",
+    "fault_type": "unreachable_start",
+    "severity": 1.0,
+    "seed": 4,
+    "learner": "ppo",
+    "method": "dirl",
+    "expected_operator": "past",
+    "actual_operator": "past",
+    "first_committed_operator": "past",
+    "fault_trigger_operator": "past",
+    "fault_trigger_edge": [
+      "start",
+      "goal"
+    ],
+    "expected_operator_used": true,
+    "operator_correct": true,
+    "outcome_category": "correct_operator_and_recovery",
+    "refinement_possible": true,
+    "evidence_reason": "both successful and failed starts available",
+    "baseline_reached_trajectories": 42,
+    "baseline_successful_trajectories": 42,
+    "baseline_failed_trajectories": 58,
+    "baseline_unsafe_trajectories": 0,
+    "baseline_unsafe_reached_trajectories": 0,
+    "baseline_affected_edge_probability": 0.42,
+    "committed_operators": [
+      "past"
+    ],
+    "operators_examined": [
+      {
+        "source": "start",
+        "target": "goal",
+        "operators_tried": [
+          "seq",
+          "add",
+          "past"
+        ],
+        "committed_operator": "past",
+        "success_before": 0.42,
+        "success_after": 1.0,
+        "is_fault_trigger": true
+      }
+    ],
+    "initial_best_path_success": 0.42,
+    "final_best_path_success": 1.0,
+    "best_path_improvement": 0.5800000000000001,
+    "initial_edge_success": [
+      {
+        "source": "start",
+        "target": "goal",
+        "probability": 0.42
+      }
+    ],
+    "final_edge_success": [
+      {
+        "source": "start",
+        "target": "goal",
+        "probability": 1.0
+      }
+    ],
+    "recovery": {
+      "metric_type": "source_region",
+      "baseline_iou": 0.5,
+      "repaired_iou": 1.0,
+      "iou_improvement": 0.5,
+      "normalized_recovery_gain": 1.0,
+      "baseline_precision": 0.5,
+      "baseline_recall": 1.0,
+      "repaired_precision": 1.0,
+      "repaired_recall": 1.0,
+      "baseline_weighted_iou": 0.32903225806451614,
+      "repaired_weighted_iou": 1.0,
+      "weighted_iou_improvement": 0.6709677419354838,
+      "subset_fraction": 1.0,
+      "normalized_graph_edit_distance": 0.0,
+      "graph_similarity": null,
+      "missing_edge_recovered": null,
+      "topology_recovered": null,
+      "recovered": true,
+      "recovery_reason": "predicate recovered most of the injected geometric error"
+    },
+    "cost": {
+      "wall_clock_seconds": 1299.990631099994,
+      "train_edge_calls": 6,
+      "continue_edge_calls": 0,
+      "estimate_calls": 6,
+      "requested_training_steps": 480000,
+      "evaluation_rollouts": 600
+    },
+    "config": {
+      "threshold": 0.8,
+      "budget": 80000,
+      "n_rollouts": 100,
+      "avoid_tail_length": 1,
+      "quality_threshold": 0.8,
+      "grid_resolution": 121
+    },
+    "fault": {
+      "description": "Broadened vertex 'start' with unreachable starting states.",
+      "affected_vertex": "start",
+      "affected_edge": null
+    },
+    "graphs": {
+      "correct": {
+        "source": "start",
+        "target": "goal",
+        "vertices": [
+          {
+            "name": "start",
+            "region": "Rect(1, 1, 3.5, 3.5)"
+          },
+          {
+            "name": "goal",
+            "region": "Rect(5, 4.5, 7, 6.5)"
+          }
+        ],
+        "edges": [
+          {
+            "source": "start",
+            "target": "goal",
+            "safe": "true"
+          }
+        ]
+      },
+      "faulty": {
+        "source": "start",
+        "target": "goal",
+        "vertices": [
+          {
+            "name": "start",
+            "region": "Rect(1, 1, 3.5, 3.5) ∨ Rect(9, 1, 11.5, 3.5)"
+          },
+          {
+            "name": "goal",
+            "region": "Rect(5, 4.5, 7, 6.5)"
+          }
+        ],
+        "edges": [
+          {
+            "source": "start",
+            "target": "goal",
+            "safe": "true"
+          }
+        ]
+      },
+      "repaired": {
+        "source": "start",
+        "target": "goal",
+        "vertices": [
+          {
+            "name": "start",
+            "region": "(Rect(1, 1, 3.5, 3.5) ∨ Rect(9, 1, 11.5, 3.5)) ∧ HalfPlane(-7.681906418064349, 0.2740198393369151, -47.35288789097896)"
+          },
+          {
+            "name": "goal",
+            "region": "Rect(5, 4.5, 7, 6.5)"
+          }
+        ],
+        "edges": [
+          {
+            "source": "start",
+            "target": "goal",
+            "safe": "true"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "status": "ok",
+    "case": "missing_waypoint",
+    "fault_type": "missing_waypoint",
+    "severity": 1.0,
+    "seed": 0,
+    "learner": "ppo",
+    "method": "dirl",
+    "expected_operator": "add",
+    "actual_operator": "add",
+    "first_committed_operator": "add",
+    "fault_trigger_operator": "add",
+    "fault_trigger_edge": [
+      "start",
+      "goal"
+    ],
+    "expected_operator_used": true,
+    "operator_correct": true,
+    "outcome_category": "correct_operator_and_recovery",
+    "refinement_possible": true,
+    "evidence_reason": "successful midpoints available",
+    "baseline_reached_trajectories": 67,
+    "baseline_successful_trajectories": 67,
+    "baseline_failed_trajectories": 33,
+    "baseline_unsafe_trajectories": 0,
+    "baseline_unsafe_reached_trajectories": 0,
+    "baseline_affected_edge_probability": 0.67,
+    "committed_operators": [
+      "add"
+    ],
+    "operators_examined": [
+      {
+        "source": "start",
+        "target": "goal",
+        "operators_tried": [
+          "seq",
+          "add"
+        ],
+        "committed_operator": "add",
+        "success_before": 0.67,
+        "success_after": 1.0,
+        "is_fault_trigger": true
+      }
+    ],
+    "initial_best_path_success": 0.67,
+    "final_best_path_success": 1.0,
+    "best_path_improvement": 0.32999999999999996,
+    "initial_edge_success": [
+      {
+        "source": "start",
+        "target": "goal",
+        "probability": 0.67
+      }
+    ],
+    "final_edge_success": [
+      {
+        "source": "start",
+        "target": "add1",
+        "probability": 1.0
+      },
+      {
+        "source": "add1",
+        "target": "goal",
+        "probability": 1.0
+      }
+    ],
+    "recovery": {
+      "metric_type": "waypoint_graph",
+      "baseline_iou": null,
+      "repaired_iou": 0.20266666666666666,
+      "iou_improvement": null,
+      "normalized_recovery_gain": null,
+      "baseline_precision": null,
+      "baseline_recall": null,
+      "repaired_precision": null,
+      "repaired_recall": null,
+      "baseline_weighted_iou": null,
+      "repaired_weighted_iou": 0.3872549019607843,
+      "weighted_iou_improvement": null,
+      "subset_fraction": null,
+      "normalized_graph_edit_distance": 0.0,
+      "graph_similarity": 1.0,
+      "missing_edge_recovered": null,
+      "topology_recovered": true,
+      "recovered": true,
+      "recovery_reason": "graph structure recovered"
+    },
+    "cost": {
+      "wall_clock_seconds": 1426.8047923999984,
+      "train_edge_calls": 6,
+      "continue_edge_calls": 0,
+      "estimate_calls": 6,
+      "requested_training_steps": 480000,
+      "evaluation_rollouts": 600
+    },
+    "config": {
+      "threshold": 0.8,
+      "budget": 80000,
+      "n_rollouts": 100,
+      "avoid_tail_length": 1,
+      "quality_threshold": 0.8,
+      "grid_resolution": 121
+    },
+    "fault": {
+      "description": "Removed waypoint 'waypoint' and collapsed 'start'->'waypoint'->'goal'.",
+      "affected_vertex": "waypoint",
+      "affected_edge": [
+        "start",
+        "goal"
+      ]
+    },
+    "graphs": {
+      "correct": {
+        "source": "start",
+        "target": "goal",
+        "vertices": [
+          {
+            "name": "start",
+            "region": "Rect(1, 10, 7, 14)"
+          },
+          {
+            "name": "waypoint",
+            "region": "Rect(11, 10, 14, 14)"
+          },
+          {
+            "name": "goal",
+            "region": "Rect(21, 11, 22.5, 13)"
+          }
+        ],
+        "edges": [
+          {
+            "source": "start",
+            "target": "waypoint",
+            "safe": "true"
+          },
+          {
+            "source": "waypoint",
+            "target": "goal",
+            "safe": "true"
+          }
+        ]
+      },
+      "faulty": {
+        "source": "start",
+        "target": "goal",
+        "vertices": [
+          {
+            "name": "start",
+            "region": "Rect(1, 10, 7, 14)"
+          },
+          {
+            "name": "goal",
+            "region": "Rect(21, 11, 22.5, 13)"
+          }
+        ],
+        "edges": [
+          {
+            "source": "start",
+            "target": "goal",
+            "safe": "true"
+          }
+        ]
+      },
+      "repaired": {
+        "source": "start",
+        "target": "goal",
+        "vertices": [
+          {
+            "name": "start",
+            "region": "Rect(1, 10, 7, 14)"
+          },
+          {
+            "name": "goal",
+            "region": "Rect(21, 11, 22.5, 13)"
+          },
+          {
+            "name": "add1",
+            "region": "Hull((12.250567436218262, 11.586190223693848), (13.385106086730957, 11.314689636230469), (14.318798065185547, 11.150887489318848), (15.5162992477417, 12.34051513671875), (14.565608024597168, 12.959786415100098), (13.687886238098145, 13.217208862304688), (12.737442016601562, 13.085071563720703), (12.363687515258789, 12.836174964904785), (12.3096342086792, 12.561972618103027))"
+          }
+        ],
+        "edges": [
+          {
+            "source": "start",
+            "target": "add1",
+            "safe": "true"
+          },
+          {
+            "source": "add1",
+            "target": "goal",
+            "safe": "true"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "status": "ok",
+    "case": "missing_waypoint",
+    "fault_type": "missing_waypoint",
+    "severity": 1.0,
+    "seed": 1,
+    "learner": "ppo",
+    "method": "dirl",
+    "expected_operator": "add",
+    "actual_operator": "add",
+    "first_committed_operator": "add",
+    "fault_trigger_operator": "add",
+    "fault_trigger_edge": [
+      "start",
+      "goal"
+    ],
+    "expected_operator_used": true,
+    "operator_correct": true,
+    "outcome_category": "correct_operator_and_recovery",
+    "refinement_possible": true,
+    "evidence_reason": "successful midpoints available",
+    "baseline_reached_trajectories": 68,
+    "baseline_successful_trajectories": 68,
+    "baseline_failed_trajectories": 32,
+    "baseline_unsafe_trajectories": 0,
+    "baseline_unsafe_reached_trajectories": 0,
+    "baseline_affected_edge_probability": 0.68,
+    "committed_operators": [
+      "add"
+    ],
+    "operators_examined": [
+      {
+        "source": "start",
+        "target": "goal",
+        "operators_tried": [
+          "seq",
+          "add"
+        ],
+        "committed_operator": "add",
+        "success_before": 0.68,
+        "success_after": 1.0,
+        "is_fault_trigger": true
+      }
+    ],
+    "initial_best_path_success": 0.68,
+    "final_best_path_success": 1.0,
+    "best_path_improvement": 0.31999999999999995,
+    "initial_edge_success": [
+      {
+        "source": "start",
+        "target": "goal",
+        "probability": 0.68
+      }
+    ],
+    "final_edge_success": [
+      {
+        "source": "start",
+        "target": "add1",
+        "probability": 1.0
+      },
+      {
+        "source": "add1",
+        "target": "goal",
+        "probability": 1.0
+      }
+    ],
+    "recovery": {
+      "metric_type": "waypoint_graph",
+      "baseline_iou": null,
+      "repaired_iou": 0.19109947643979058,
+      "iou_improvement": null,
+      "normalized_recovery_gain": null,
+      "baseline_precision": null,
+      "baseline_recall": null,
+      "repaired_precision": null,
+      "repaired_recall": null,
+      "baseline_weighted_iou": null,
+      "repaired_weighted_iou": 0.36018957345971564,
+      "weighted_iou_improvement": null,
+      "subset_fraction": null,
+      "normalized_graph_edit_distance": 0.0,
+      "graph_similarity": 1.0,
+      "missing_edge_recovered": null,
+      "topology_recovered": true,
+      "recovered": true,
+      "recovery_reason": "graph structure recovered"
+    },
+    "cost": {
+      "wall_clock_seconds": 1409.0965740999964,
+      "train_edge_calls": 6,
+      "continue_edge_calls": 0,
+      "estimate_calls": 6,
+      "requested_training_steps": 480000,
+      "evaluation_rollouts": 600
+    },
+    "config": {
+      "threshold": 0.8,
+      "budget": 80000,
+      "n_rollouts": 100,
+      "avoid_tail_length": 1,
+      "quality_threshold": 0.8,
+      "grid_resolution": 121
+    },
+    "fault": {
+      "description": "Removed waypoint 'waypoint' and collapsed 'start'->'waypoint'->'goal'.",
+      "affected_vertex": "waypoint",
+      "affected_edge": [
+        "start",
+        "goal"
+      ]
+    },
+    "graphs": {
+      "correct": {
+        "source": "start",
+        "target": "goal",
+        "vertices": [
+          {
+            "name": "start",
+            "region": "Rect(1, 10, 7, 14)"
+          },
+          {
+            "name": "waypoint",
+            "region": "Rect(11, 10, 14, 14)"
+          },
+          {
+            "name": "goal",
+            "region": "Rect(21, 11, 22.5, 13)"
+          }
+        ],
+        "edges": [
+          {
+            "source": "start",
+            "target": "waypoint",
+            "safe": "true"
+          },
+          {
+            "source": "waypoint",
+            "target": "goal",
+            "safe": "true"
+          }
+        ]
+      },
+      "faulty": {
+        "source": "start",
+        "target": "goal",
+        "vertices": [
+          {
+            "name": "start",
+            "region": "Rect(1, 10, 7, 14)"
+          },
+          {
+            "name": "goal",
+            "region": "Rect(21, 11, 22.5, 13)"
+          }
+        ],
+        "edges": [
+          {
+            "source": "start",
+            "target": "goal",
+            "safe": "true"
+          }
+        ]
+      },
+      "repaired": {
+        "source": "start",
+        "target": "goal",
+        "vertices": [
+          {
+            "name": "start",
+            "region": "Rect(1, 10, 7, 14)"
+          },
+          {
+            "name": "goal",
+            "region": "Rect(21, 11, 22.5, 13)"
+          },
+          {
+            "name": "add1",
+            "region": "Hull((12.444182395935059, 12.29503345489502), (12.48681354522705, 12.081541061401367), (12.763669967651367, 11.120524406433105), (13.363611221313477, 11.095663070678711), (14.56540584564209, 11.132803916931152), (14.921256065368652, 11.37514877319336), (15.238069534301758, 11.657137870788574), (15.265985488891602, 11.978281021118164), (15.287178993225098, 12.389159202575684), (14.795818328857422, 12.85936450958252), (13.336328506469727, 13.209259033203125), (13.019184112548828, 13.106002807617188), (12.602455139160156, 12.602462768554688))"
+          }
+        ],
+        "edges": [
+          {
+            "source": "start",
+            "target": "add1",
+            "safe": "true"
+          },
+          {
+            "source": "add1",
+            "target": "goal",
+            "safe": "true"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "status": "ok",
+    "case": "missing_waypoint",
+    "fault_type": "missing_waypoint",
+    "severity": 1.0,
+    "seed": 2,
+    "learner": "ppo",
+    "method": "dirl",
+    "expected_operator": "add",
+    "actual_operator": "add",
+    "first_committed_operator": "add",
+    "fault_trigger_operator": "add",
+    "fault_trigger_edge": [
+      "start",
+      "goal"
+    ],
+    "expected_operator_used": true,
+    "operator_correct": true,
+    "outcome_category": "correct_operator_and_recovery",
+    "refinement_possible": true,
+    "evidence_reason": "successful midpoints available",
+    "baseline_reached_trajectories": 74,
+    "baseline_successful_trajectories": 74,
+    "baseline_failed_trajectories": 26,
+    "baseline_unsafe_trajectories": 0,
+    "baseline_unsafe_reached_trajectories": 0,
+    "baseline_affected_edge_probability": 0.74,
+    "committed_operators": [
+      "add"
+    ],
+    "operators_examined": [
+      {
+        "source": "start",
+        "target": "goal",
+        "operators_tried": [
+          "seq",
+          "add"
+        ],
+        "committed_operator": "add",
+        "success_before": 0.74,
+        "success_after": 1.0,
+        "is_fault_trigger": true
+      }
+    ],
+    "initial_best_path_success": 0.74,
+    "final_best_path_success": 1.0,
+    "best_path_improvement": 0.26,
+    "initial_edge_success": [
+      {
+        "source": "start",
+        "target": "goal",
+        "probability": 0.74
+      }
+    ],
+    "final_edge_success": [
+      {
+        "source": "start",
+        "target": "add1",
+        "probability": 1.0
+      },
+      {
+        "source": "add1",
+        "target": "goal",
+        "probability": 1.0
+      }
+    ],
+    "recovery": {
+      "metric_type": "waypoint_graph",
+      "baseline_iou": null,
+      "repaired_iou": 0.17391304347826086,
+      "iou_improvement": null,
+      "normalized_recovery_gain": null,
+      "baseline_precision": null,
+      "baseline_recall": null,
+      "repaired_precision": null,
+      "repaired_recall": null,
+      "baseline_weighted_iou": null,
+      "repaired_weighted_iou": 0.3482587064676617,
+      "weighted_iou_improvement": null,
+      "subset_fraction": null,
+      "normalized_graph_edit_distance": 0.0,
+      "graph_similarity": 1.0,
+      "missing_edge_recovered": null,
+      "topology_recovered": true,
+      "recovered": true,
+      "recovery_reason": "graph structure recovered"
+    },
+    "cost": {
+      "wall_clock_seconds": 1173.096162700007,
+      "train_edge_calls": 6,
+      "continue_edge_calls": 0,
+      "estimate_calls": 6,
+      "requested_training_steps": 480000,
+      "evaluation_rollouts": 600
+    },
+    "config": {
+      "threshold": 0.8,
+      "budget": 80000,
+      "n_rollouts": 100,
+      "avoid_tail_length": 1,
+      "quality_threshold": 0.8,
+      "grid_resolution": 121
+    },
+    "fault": {
+      "description": "Removed waypoint 'waypoint' and collapsed 'start'->'waypoint'->'goal'.",
+      "affected_vertex": "waypoint",
+      "affected_edge": [
+        "start",
+        "goal"
+      ]
+    },
+    "graphs": {
+      "correct": {
+        "source": "start",
+        "target": "goal",
+        "vertices": [
+          {
+            "name": "start",
+            "region": "Rect(1, 10, 7, 14)"
+          },
+          {
+            "name": "waypoint",
+            "region": "Rect(11, 10, 14, 14)"
+          },
+          {
+            "name": "goal",
+            "region": "Rect(21, 11, 22.5, 13)"
+          }
+        ],
+        "edges": [
+          {
+            "source": "start",
+            "target": "waypoint",
+            "safe": "true"
+          },
+          {
+            "source": "waypoint",
+            "target": "goal",
+            "safe": "true"
+          }
+        ]
+      },
+      "faulty": {
+        "source": "start",
+        "target": "goal",
+        "vertices": [
+          {
+            "name": "start",
+            "region": "Rect(1, 10, 7, 14)"
+          },
+          {
+            "name": "goal",
+            "region": "Rect(21, 11, 22.5, 13)"
+          }
+        ],
+        "edges": [
+          {
+            "source": "start",
+            "target": "goal",
+            "safe": "true"
+          }
+        ]
+      },
+      "repaired": {
+        "source": "start",
+        "target": "goal",
+        "vertices": [
+          {
+            "name": "start",
+            "region": "Rect(1, 10, 7, 14)"
+          },
+          {
+            "name": "goal",
+            "region": "Rect(21, 11, 22.5, 13)"
+          },
+          {
+            "name": "add1",
+            "region": "Hull((12.325385093688965, 11.354385375976562), (12.43842601776123, 10.849730491638184), (13.937272071838379, 10.775763511657715), (14.659878730773926, 10.922928810119629), (14.876874923706055, 11.013827323913574), (14.99471664428711, 11.128373146057129), (15.17617130279541, 11.405259132385254), (14.541559219360352, 12.433582305908203), (13.142190933227539, 12.516185760498047), (12.822197914123535, 12.23529052734375), (12.505311012268066, 11.734214782714844))"
+          }
+        ],
+        "edges": [
+          {
+            "source": "start",
+            "target": "add1",
+            "safe": "true"
+          },
+          {
+            "source": "add1",
+            "target": "goal",
+            "safe": "true"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "status": "ok",
+    "case": "missing_waypoint",
+    "fault_type": "missing_waypoint",
+    "severity": 1.0,
+    "seed": 3,
+    "learner": "ppo",
+    "method": "dirl",
+    "expected_operator": "add",
+    "actual_operator": "add",
+    "first_committed_operator": "add",
+    "fault_trigger_operator": "add",
+    "fault_trigger_edge": [
+      "start",
+      "goal"
+    ],
+    "expected_operator_used": true,
+    "operator_correct": true,
+    "outcome_category": "correct_operator_and_recovery",
+    "refinement_possible": true,
+    "evidence_reason": "successful midpoints available",
+    "baseline_reached_trajectories": 71,
+    "baseline_successful_trajectories": 71,
+    "baseline_failed_trajectories": 29,
+    "baseline_unsafe_trajectories": 0,
+    "baseline_unsafe_reached_trajectories": 0,
+    "baseline_affected_edge_probability": 0.71,
+    "committed_operators": [
+      "add"
+    ],
+    "operators_examined": [
+      {
+        "source": "start",
+        "target": "goal",
+        "operators_tried": [
+          "seq",
+          "add"
+        ],
+        "committed_operator": "add",
+        "success_before": 0.71,
+        "success_after": 1.0,
+        "is_fault_trigger": true
+      }
+    ],
+    "initial_best_path_success": 0.71,
+    "final_best_path_success": 1.0,
+    "best_path_improvement": 0.29000000000000004,
+    "initial_edge_success": [
+      {
+        "source": "start",
+        "target": "goal",
+        "probability": 0.71
+      }
+    ],
+    "final_edge_success": [
+      {
+        "source": "start",
+        "target": "add1",
+        "probability": 1.0
+      },
+      {
+        "source": "add1",
+        "target": "goal",
+        "probability": 1.0
+      }
+    ],
+    "recovery": {
+      "metric_type": "waypoint_graph",
+      "baseline_iou": null,
+      "repaired_iou": 0.21465968586387435,
+      "iou_improvement": null,
+      "normalized_recovery_gain": null,
+      "baseline_precision": null,
+      "baseline_recall": null,
+      "repaired_precision": null,
+      "repaired_recall": null,
+      "baseline_weighted_iou": null,
+      "repaired_weighted_iou": 0.3476190476190476,
+      "weighted_iou_improvement": null,
+      "subset_fraction": null,
+      "normalized_graph_edit_distance": 0.0,
+      "graph_similarity": 1.0,
+      "missing_edge_recovered": null,
+      "topology_recovered": true,
+      "recovered": true,
+      "recovery_reason": "graph structure recovered"
+    },
+    "cost": {
+      "wall_clock_seconds": 772.4996882000123,
+      "train_edge_calls": 6,
+      "continue_edge_calls": 0,
+      "estimate_calls": 6,
+      "requested_training_steps": 480000,
+      "evaluation_rollouts": 600
+    },
+    "config": {
+      "threshold": 0.8,
+      "budget": 80000,
+      "n_rollouts": 100,
+      "avoid_tail_length": 1,
+      "quality_threshold": 0.8,
+      "grid_resolution": 121
+    },
+    "fault": {
+      "description": "Removed waypoint 'waypoint' and collapsed 'start'->'waypoint'->'goal'.",
+      "affected_vertex": "waypoint",
+      "affected_edge": [
+        "start",
+        "goal"
+      ]
+    },
+    "graphs": {
+      "correct": {
+        "source": "start",
+        "target": "goal",
+        "vertices": [
+          {
+            "name": "start",
+            "region": "Rect(1, 10, 7, 14)"
+          },
+          {
+            "name": "waypoint",
+            "region": "Rect(11, 10, 14, 14)"
+          },
+          {
+            "name": "goal",
+            "region": "Rect(21, 11, 22.5, 13)"
+          }
+        ],
+        "edges": [
+          {
+            "source": "start",
+            "target": "waypoint",
+            "safe": "true"
+          },
+          {
+            "source": "waypoint",
+            "target": "goal",
+            "safe": "true"
+          }
+        ]
+      },
+      "faulty": {
+        "source": "start",
+        "target": "goal",
+        "vertices": [
+          {
+            "name": "start",
+            "region": "Rect(1, 10, 7, 14)"
+          },
+          {
+            "name": "goal",
+            "region": "Rect(21, 11, 22.5, 13)"
+          }
+        ],
+        "edges": [
+          {
+            "source": "start",
+            "target": "goal",
+            "safe": "true"
+          }
+        ]
+      },
+      "repaired": {
+        "source": "start",
+        "target": "goal",
+        "vertices": [
+          {
+            "name": "start",
+            "region": "Rect(1, 10, 7, 14)"
+          },
+          {
+            "name": "goal",
+            "region": "Rect(21, 11, 22.5, 13)"
+          },
+          {
+            "name": "add1",
+            "region": "Hull((12.056992530822754, 11.566472053527832), (13.364057540893555, 11.169231414794922), (13.608369827270508, 11.181272506713867), (14.65660285949707, 11.252790451049805), (15.33696460723877, 11.907329559326172), (15.289746284484863, 12.422306060791016), (14.83713436126709, 12.90644359588623), (14.167645454406738, 13.301658630371094), (13.35823917388916, 13.138869285583496), (12.668848037719727, 12.978816032409668), (12.461282730102539, 12.725086212158203))"
+          }
+        ],
+        "edges": [
+          {
+            "source": "start",
+            "target": "add1",
+            "safe": "true"
+          },
+          {
+            "source": "add1",
+            "target": "goal",
+            "safe": "true"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "status": "ok",
+    "case": "missing_waypoint",
+    "fault_type": "missing_waypoint",
+    "severity": 1.0,
+    "seed": 4,
+    "learner": "ppo",
+    "method": "dirl",
+    "expected_operator": "add",
+    "actual_operator": "add",
+    "first_committed_operator": "add",
+    "fault_trigger_operator": "add",
+    "fault_trigger_edge": [
+      "start",
+      "goal"
+    ],
+    "expected_operator_used": true,
+    "operator_correct": true,
+    "outcome_category": "correct_operator_and_recovery",
+    "refinement_possible": true,
+    "evidence_reason": "successful midpoints available",
+    "baseline_reached_trajectories": 69,
+    "baseline_successful_trajectories": 69,
+    "baseline_failed_trajectories": 31,
+    "baseline_unsafe_trajectories": 0,
+    "baseline_unsafe_reached_trajectories": 0,
+    "baseline_affected_edge_probability": 0.69,
+    "committed_operators": [
+      "add"
+    ],
+    "operators_examined": [
+      {
+        "source": "start",
+        "target": "goal",
+        "operators_tried": [
+          "seq",
+          "add"
+        ],
+        "committed_operator": "add",
+        "success_before": 0.69,
+        "success_after": 1.0,
+        "is_fault_trigger": true
+      }
+    ],
+    "initial_best_path_success": 0.69,
+    "final_best_path_success": 1.0,
+    "best_path_improvement": 0.31000000000000005,
+    "initial_edge_success": [
+      {
+        "source": "start",
+        "target": "goal",
+        "probability": 0.69
+      }
+    ],
+    "final_edge_success": [
+      {
+        "source": "start",
+        "target": "add1",
+        "probability": 1.0
+      },
+      {
+        "source": "add1",
+        "target": "goal",
+        "probability": 1.0
+      }
+    ],
+    "recovery": {
+      "metric_type": "waypoint_graph",
+      "baseline_iou": null,
+      "repaired_iou": 0.18681318681318682,
+      "iou_improvement": null,
+      "normalized_recovery_gain": null,
+      "baseline_precision": null,
+      "baseline_recall": null,
+      "repaired_precision": null,
+      "repaired_recall": null,
+      "baseline_weighted_iou": null,
+      "repaired_weighted_iou": 0.3484848484848485,
+      "weighted_iou_improvement": null,
+      "subset_fraction": null,
+      "normalized_graph_edit_distance": 0.0,
+      "graph_similarity": 1.0,
+      "missing_edge_recovered": null,
+      "topology_recovered": true,
+      "recovered": true,
+      "recovery_reason": "graph structure recovered"
+    },
+    "cost": {
+      "wall_clock_seconds": 811.7847908999975,
+      "train_edge_calls": 6,
+      "continue_edge_calls": 0,
+      "estimate_calls": 6,
+      "requested_training_steps": 480000,
+      "evaluation_rollouts": 600
+    },
+    "config": {
+      "threshold": 0.8,
+      "budget": 80000,
+      "n_rollouts": 100,
+      "avoid_tail_length": 1,
+      "quality_threshold": 0.8,
+      "grid_resolution": 121
+    },
+    "fault": {
+      "description": "Removed waypoint 'waypoint' and collapsed 'start'->'waypoint'->'goal'.",
+      "affected_vertex": "waypoint",
+      "affected_edge": [
+        "start",
+        "goal"
+      ]
+    },
+    "graphs": {
+      "correct": {
+        "source": "start",
+        "target": "goal",
+        "vertices": [
+          {
+            "name": "start",
+            "region": "Rect(1, 10, 7, 14)"
+          },
+          {
+            "name": "waypoint",
+            "region": "Rect(11, 10, 14, 14)"
+          },
+          {
+            "name": "goal",
+            "region": "Rect(21, 11, 22.5, 13)"
+          }
+        ],
+        "edges": [
+          {
+            "source": "start",
+            "target": "waypoint",
+            "safe": "true"
+          },
+          {
+            "source": "waypoint",
+            "target": "goal",
+            "safe": "true"
+          }
+        ]
+      },
+      "faulty": {
+        "source": "start",
+        "target": "goal",
+        "vertices": [
+          {
+            "name": "start",
+            "region": "Rect(1, 10, 7, 14)"
+          },
+          {
+            "name": "goal",
+            "region": "Rect(21, 11, 22.5, 13)"
+          }
+        ],
+        "edges": [
+          {
+            "source": "start",
+            "target": "goal",
+            "safe": "true"
+          }
+        ]
+      },
+      "repaired": {
+        "source": "start",
+        "target": "goal",
+        "vertices": [
+          {
+            "name": "start",
+            "region": "Rect(1, 10, 7, 14)"
+          },
+          {
+            "name": "goal",
+            "region": "Rect(21, 11, 22.5, 13)"
+          },
+          {
+            "name": "add1",
+            "region": "Hull((12.148778915405273, 12.120442390441895), (12.28863525390625, 11.629945755004883), (12.637089729309082, 11.283249855041504), (14.057894706726074, 11.546602249145508), (14.435872077941895, 11.687331199645996), (14.660537719726562, 11.782217025756836), (14.996708869934082, 11.927660942077637), (14.952166557312012, 12.689033508300781), (14.89659309387207, 13.021147727966309), (14.165852546691895, 13.081889152526855), (12.414968490600586, 12.708285331726074))"
+          }
+        ],
+        "edges": [
+          {
+            "source": "start",
+            "target": "add1",
+            "safe": "true"
+          },
+          {
+            "source": "add1",
+            "target": "goal",
+            "safe": "true"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "status": "ok",
+    "case": "missing_alternative",
+    "fault_type": "missing_alternative",
+    "severity": 1.0,
+    "seed": 0,
+    "learner": "ppo",
+    "method": "dirl",
+    "expected_operator": "or",
+    "actual_operator": "or",
+    "first_committed_operator": "or",
+    "fault_trigger_operator": "or",
+    "fault_trigger_edge": [
+      "a",
+      "goal"
+    ],
+    "expected_operator_used": true,
+    "operator_correct": true,
+    "outcome_category": "correct_operator_and_recovery",
+    "refinement_possible": true,
+    "evidence_reason": "OrRefine is structural; bottleneck edge was evaluated",
+    "baseline_reached_trajectories": 0,
+    "baseline_successful_trajectories": 0,
+    "baseline_failed_trajectories": 100,
+    "baseline_unsafe_trajectories": 0,
+    "baseline_unsafe_reached_trajectories": 0,
+    "baseline_affected_edge_probability": 0.0,
+    "committed_operators": [
+      "or"
+    ],
+    "operators_examined": [
+      {
+        "source": "a",
+        "target": "goal",
+        "operators_tried": [
+          "seq",
+          "add",
+          "past",
+          "or"
+        ],
+        "committed_operator": "or",
+        "success_before": 0.0,
+        "success_after": 1.0,
+        "is_fault_trigger": true
+      }
+    ],
+    "initial_best_path_success": 0.0,
+    "final_best_path_success": 1.0,
+    "best_path_improvement": 1.0,
+    "initial_edge_success": [
+      {
+        "source": "start",
+        "target": "a",
+        "probability": 1.0
+      },
+      {
+        "source": "a",
+        "target": "goal",
+        "probability": 0.0
+      },
+      {
+        "source": "b",
+        "target": "goal",
+        "probability": null
+      }
+    ],
+    "final_edge_success": [
+      {
+        "source": "start",
+        "target": "a",
+        "probability": 1.0
+      },
+      {
+        "source": "a",
+        "target": "goal",
+        "probability": 0.0
+      },
+      {
+        "source": "b",
+        "target": "goal",
+        "probability": 1.0
+      },
+      {
+        "source": "a",
+        "target": "b",
+        "probability": 1.0
+      }
+    ],
+    "recovery": {
+      "metric_type": "graph_structure",
+      "baseline_iou": null,
+      "repaired_iou": null,
+      "iou_improvement": null,
+      "normalized_recovery_gain": null,
+      "baseline_precision": null,
+      "baseline_recall": null,
+      "repaired_precision": null,
+      "repaired_recall": null,
+      "baseline_weighted_iou": null,
+      "repaired_weighted_iou": null,
+      "weighted_iou_improvement": null,
+      "subset_fraction": null,
+      "normalized_graph_edit_distance": 0.0,
+      "graph_similarity": 1.0,
+      "missing_edge_recovered": true,
+      "topology_recovered": true,
+      "recovered": true,
+      "recovery_reason": "missing alternative and graph structure recovered"
+    },
+    "cost": {
+      "wall_clock_seconds": 1125.1769377000019,
+      "train_edge_calls": 8,
+      "continue_edge_calls": 0,
+      "estimate_calls": 8,
+      "requested_training_steps": 640000,
+      "evaluation_rollouts": 800
+    },
+    "config": {
+      "threshold": 0.8,
+      "budget": 80000,
+      "n_rollouts": 100,
+      "avoid_tail_length": 1,
+      "quality_threshold": 0.8,
+      "grid_resolution": 121
+    },
+    "fault": {
+      "description": "Removed alternative edge 'a'->'b'.",
+      "affected_vertex": null,
+      "affected_edge": [
+        "a",
+        "b"
+      ]
+    },
+    "graphs": {
+      "correct": {
+        "source": "start",
+        "target": "goal",
+        "vertices": [
+          {
+            "name": "start",
+            "region": "Rect(1, 11, 3, 13)"
+          },
+          {
+            "name": "a",
+            "region": "Rect(4, 11, 6, 13)"
+          },
+          {
+            "name": "b",
+            "region": "Rect(10, 11, 12, 13)"
+          },
+          {
+            "name": "goal",
+            "region": "Rect(19, 11, 21, 13)"
+          }
+        ],
+        "edges": [
+          {
+            "source": "start",
+            "target": "a",
+            "safe": "true"
+          },
+          {
+            "source": "a",
+            "target": "goal",
+            "safe": "true"
+          },
+          {
+            "source": "b",
+            "target": "goal",
+            "safe": "true"
+          },
+          {
+            "source": "a",
+            "target": "b",
+            "safe": "true"
+          }
+        ]
+      },
+      "faulty": {
+        "source": "start",
+        "target": "goal",
+        "vertices": [
+          {
+            "name": "start",
+            "region": "Rect(1, 11, 3, 13)"
+          },
+          {
+            "name": "a",
+            "region": "Rect(4, 11, 6, 13)"
+          },
+          {
+            "name": "b",
+            "region": "Rect(10, 11, 12, 13)"
+          },
+          {
+            "name": "goal",
+            "region": "Rect(19, 11, 21, 13)"
+          }
+        ],
+        "edges": [
+          {
+            "source": "start",
+            "target": "a",
+            "safe": "true"
+          },
+          {
+            "source": "a",
+            "target": "goal",
+            "safe": "true"
+          },
+          {
+            "source": "b",
+            "target": "goal",
+            "safe": "true"
+          }
+        ]
+      },
+      "repaired": {
+        "source": "start",
+        "target": "goal",
+        "vertices": [
+          {
+            "name": "start",
+            "region": "Rect(1, 11, 3, 13)"
+          },
+          {
+            "name": "a",
+            "region": "Rect(4, 11, 6, 13)"
+          },
+          {
+            "name": "b",
+            "region": "Rect(10, 11, 12, 13)"
+          },
+          {
+            "name": "goal",
+            "region": "Rect(19, 11, 21, 13)"
+          }
+        ],
+        "edges": [
+          {
+            "source": "start",
+            "target": "a",
+            "safe": "true"
+          },
+          {
+            "source": "a",
+            "target": "goal",
+            "safe": "true"
+          },
+          {
+            "source": "b",
+            "target": "goal",
+            "safe": "true"
+          },
+          {
+            "source": "a",
+            "target": "b",
+            "safe": "true"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "status": "ok",
+    "case": "missing_alternative",
+    "fault_type": "missing_alternative",
+    "severity": 1.0,
+    "seed": 1,
+    "learner": "ppo",
+    "method": "dirl",
+    "expected_operator": "or",
+    "actual_operator": "or",
+    "first_committed_operator": "or",
+    "fault_trigger_operator": "or",
+    "fault_trigger_edge": [
+      "a",
+      "goal"
+    ],
+    "expected_operator_used": true,
+    "operator_correct": true,
+    "outcome_category": "correct_operator_and_recovery",
+    "refinement_possible": true,
+    "evidence_reason": "OrRefine is structural; bottleneck edge was evaluated",
+    "baseline_reached_trajectories": 0,
+    "baseline_successful_trajectories": 0,
+    "baseline_failed_trajectories": 100,
+    "baseline_unsafe_trajectories": 0,
+    "baseline_unsafe_reached_trajectories": 0,
+    "baseline_affected_edge_probability": 0.0,
+    "committed_operators": [
+      "or"
+    ],
+    "operators_examined": [
+      {
+        "source": "a",
+        "target": "goal",
+        "operators_tried": [
+          "seq",
+          "add",
+          "past",
+          "or"
+        ],
+        "committed_operator": "or",
+        "success_before": 0.0,
+        "success_after": 1.0,
+        "is_fault_trigger": true
+      }
+    ],
+    "initial_best_path_success": 0.0,
+    "final_best_path_success": 1.0,
+    "best_path_improvement": 1.0,
+    "initial_edge_success": [
+      {
+        "source": "start",
+        "target": "a",
+        "probability": 1.0
+      },
+      {
+        "source": "a",
+        "target": "goal",
+        "probability": 0.0
+      },
+      {
+        "source": "b",
+        "target": "goal",
+        "probability": null
+      }
+    ],
+    "final_edge_success": [
+      {
+        "source": "start",
+        "target": "a",
+        "probability": 1.0
+      },
+      {
+        "source": "a",
+        "target": "goal",
+        "probability": 0.0
+      },
+      {
+        "source": "b",
+        "target": "goal",
+        "probability": 1.0
+      },
+      {
+        "source": "a",
+        "target": "b",
+        "probability": 1.0
+      }
+    ],
+    "recovery": {
+      "metric_type": "graph_structure",
+      "baseline_iou": null,
+      "repaired_iou": null,
+      "iou_improvement": null,
+      "normalized_recovery_gain": null,
+      "baseline_precision": null,
+      "baseline_recall": null,
+      "repaired_precision": null,
+      "repaired_recall": null,
+      "baseline_weighted_iou": null,
+      "repaired_weighted_iou": null,
+      "weighted_iou_improvement": null,
+      "subset_fraction": null,
+      "normalized_graph_edit_distance": 0.0,
+      "graph_similarity": 1.0,
+      "missing_edge_recovered": true,
+      "topology_recovered": true,
+      "recovered": true,
+      "recovery_reason": "missing alternative and graph structure recovered"
+    },
+    "cost": {
+      "wall_clock_seconds": 1127.1144233999948,
+      "train_edge_calls": 8,
+      "continue_edge_calls": 0,
+      "estimate_calls": 8,
+      "requested_training_steps": 640000,
+      "evaluation_rollouts": 800
+    },
+    "config": {
+      "threshold": 0.8,
+      "budget": 80000,
+      "n_rollouts": 100,
+      "avoid_tail_length": 1,
+      "quality_threshold": 0.8,
+      "grid_resolution": 121
+    },
+    "fault": {
+      "description": "Removed alternative edge 'a'->'b'.",
+      "affected_vertex": null,
+      "affected_edge": [
+        "a",
+        "b"
+      ]
+    },
+    "graphs": {
+      "correct": {
+        "source": "start",
+        "target": "goal",
+        "vertices": [
+          {
+            "name": "start",
+            "region": "Rect(1, 11, 3, 13)"
+          },
+          {
+            "name": "a",
+            "region": "Rect(4, 11, 6, 13)"
+          },
+          {
+            "name": "b",
+            "region": "Rect(10, 11, 12, 13)"
+          },
+          {
+            "name": "goal",
+            "region": "Rect(19, 11, 21, 13)"
+          }
+        ],
+        "edges": [
+          {
+            "source": "start",
+            "target": "a",
+            "safe": "true"
+          },
+          {
+            "source": "a",
+            "target": "goal",
+            "safe": "true"
+          },
+          {
+            "source": "b",
+            "target": "goal",
+            "safe": "true"
+          },
+          {
+            "source": "a",
+            "target": "b",
+            "safe": "true"
+          }
+        ]
+      },
+      "faulty": {
+        "source": "start",
+        "target": "goal",
+        "vertices": [
+          {
+            "name": "start",
+            "region": "Rect(1, 11, 3, 13)"
+          },
+          {
+            "name": "a",
+            "region": "Rect(4, 11, 6, 13)"
+          },
+          {
+            "name": "b",
+            "region": "Rect(10, 11, 12, 13)"
+          },
+          {
+            "name": "goal",
+            "region": "Rect(19, 11, 21, 13)"
+          }
+        ],
+        "edges": [
+          {
+            "source": "start",
+            "target": "a",
+            "safe": "true"
+          },
+          {
+            "source": "a",
+            "target": "goal",
+            "safe": "true"
+          },
+          {
+            "source": "b",
+            "target": "goal",
+            "safe": "true"
+          }
+        ]
+      },
+      "repaired": {
+        "source": "start",
+        "target": "goal",
+        "vertices": [
+          {
+            "name": "start",
+            "region": "Rect(1, 11, 3, 13)"
+          },
+          {
+            "name": "a",
+            "region": "Rect(4, 11, 6, 13)"
+          },
+          {
+            "name": "b",
+            "region": "Rect(10, 11, 12, 13)"
+          },
+          {
+            "name": "goal",
+            "region": "Rect(19, 11, 21, 13)"
+          }
+        ],
+        "edges": [
+          {
+            "source": "start",
+            "target": "a",
+            "safe": "true"
+          },
+          {
+            "source": "a",
+            "target": "goal",
+            "safe": "true"
+          },
+          {
+            "source": "b",
+            "target": "goal",
+            "safe": "true"
+          },
+          {
+            "source": "a",
+            "target": "b",
+            "safe": "true"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "status": "ok",
+    "case": "missing_alternative",
+    "fault_type": "missing_alternative",
+    "severity": 1.0,
+    "seed": 2,
+    "learner": "ppo",
+    "method": "dirl",
+    "expected_operator": "or",
+    "actual_operator": "or",
+    "first_committed_operator": "or",
+    "fault_trigger_operator": "or",
+    "fault_trigger_edge": [
+      "a",
+      "goal"
+    ],
+    "expected_operator_used": true,
+    "operator_correct": true,
+    "outcome_category": "correct_operator_and_recovery",
+    "refinement_possible": true,
+    "evidence_reason": "OrRefine is structural; bottleneck edge was evaluated",
+    "baseline_reached_trajectories": 0,
+    "baseline_successful_trajectories": 0,
+    "baseline_failed_trajectories": 100,
+    "baseline_unsafe_trajectories": 0,
+    "baseline_unsafe_reached_trajectories": 0,
+    "baseline_affected_edge_probability": 0.0,
+    "committed_operators": [
+      "or"
+    ],
+    "operators_examined": [
+      {
+        "source": "a",
+        "target": "goal",
+        "operators_tried": [
+          "seq",
+          "add",
+          "past",
+          "or"
+        ],
+        "committed_operator": "or",
+        "success_before": 0.0,
+        "success_after": 1.0,
+        "is_fault_trigger": true
+      }
+    ],
+    "initial_best_path_success": 0.0,
+    "final_best_path_success": 1.0,
+    "best_path_improvement": 1.0,
+    "initial_edge_success": [
+      {
+        "source": "start",
+        "target": "a",
+        "probability": 1.0
+      },
+      {
+        "source": "a",
+        "target": "goal",
+        "probability": 0.0
+      },
+      {
+        "source": "b",
+        "target": "goal",
+        "probability": null
+      }
+    ],
+    "final_edge_success": [
+      {
+        "source": "start",
+        "target": "a",
+        "probability": 1.0
+      },
+      {
+        "source": "a",
+        "target": "goal",
+        "probability": 0.0
+      },
+      {
+        "source": "b",
+        "target": "goal",
+        "probability": 1.0
+      },
+      {
+        "source": "a",
+        "target": "b",
+        "probability": 1.0
+      }
+    ],
+    "recovery": {
+      "metric_type": "graph_structure",
+      "baseline_iou": null,
+      "repaired_iou": null,
+      "iou_improvement": null,
+      "normalized_recovery_gain": null,
+      "baseline_precision": null,
+      "baseline_recall": null,
+      "repaired_precision": null,
+      "repaired_recall": null,
+      "baseline_weighted_iou": null,
+      "repaired_weighted_iou": null,
+      "weighted_iou_improvement": null,
+      "subset_fraction": null,
+      "normalized_graph_edit_distance": 0.0,
+      "graph_similarity": 1.0,
+      "missing_edge_recovered": true,
+      "topology_recovered": true,
+      "recovered": true,
+      "recovery_reason": "missing alternative and graph structure recovered"
+    },
+    "cost": {
+      "wall_clock_seconds": 1127.9031762999948,
+      "train_edge_calls": 8,
+      "continue_edge_calls": 0,
+      "estimate_calls": 8,
+      "requested_training_steps": 640000,
+      "evaluation_rollouts": 800
+    },
+    "config": {
+      "threshold": 0.8,
+      "budget": 80000,
+      "n_rollouts": 100,
+      "avoid_tail_length": 1,
+      "quality_threshold": 0.8,
+      "grid_resolution": 121
+    },
+    "fault": {
+      "description": "Removed alternative edge 'a'->'b'.",
+      "affected_vertex": null,
+      "affected_edge": [
+        "a",
+        "b"
+      ]
+    },
+    "graphs": {
+      "correct": {
+        "source": "start",
+        "target": "goal",
+        "vertices": [
+          {
+            "name": "start",
+            "region": "Rect(1, 11, 3, 13)"
+          },
+          {
+            "name": "a",
+            "region": "Rect(4, 11, 6, 13)"
+          },
+          {
+            "name": "b",
+            "region": "Rect(10, 11, 12, 13)"
+          },
+          {
+            "name": "goal",
+            "region": "Rect(19, 11, 21, 13)"
+          }
+        ],
+        "edges": [
+          {
+            "source": "start",
+            "target": "a",
+            "safe": "true"
+          },
+          {
+            "source": "a",
+            "target": "goal",
+            "safe": "true"
+          },
+          {
+            "source": "b",
+            "target": "goal",
+            "safe": "true"
+          },
+          {
+            "source": "a",
+            "target": "b",
+            "safe": "true"
+          }
+        ]
+      },
+      "faulty": {
+        "source": "start",
+        "target": "goal",
+        "vertices": [
+          {
+            "name": "start",
+            "region": "Rect(1, 11, 3, 13)"
+          },
+          {
+            "name": "a",
+            "region": "Rect(4, 11, 6, 13)"
+          },
+          {
+            "name": "b",
+            "region": "Rect(10, 11, 12, 13)"
+          },
+          {
+            "name": "goal",
+            "region": "Rect(19, 11, 21, 13)"
+          }
+        ],
+        "edges": [
+          {
+            "source": "start",
+            "target": "a",
+            "safe": "true"
+          },
+          {
+            "source": "a",
+            "target": "goal",
+            "safe": "true"
+          },
+          {
+            "source": "b",
+            "target": "goal",
+            "safe": "true"
+          }
+        ]
+      },
+      "repaired": {
+        "source": "start",
+        "target": "goal",
+        "vertices": [
+          {
+            "name": "start",
+            "region": "Rect(1, 11, 3, 13)"
+          },
+          {
+            "name": "a",
+            "region": "Rect(4, 11, 6, 13)"
+          },
+          {
+            "name": "b",
+            "region": "Rect(10, 11, 12, 13)"
+          },
+          {
+            "name": "goal",
+            "region": "Rect(19, 11, 21, 13)"
+          }
+        ],
+        "edges": [
+          {
+            "source": "start",
+            "target": "a",
+            "safe": "true"
+          },
+          {
+            "source": "a",
+            "target": "goal",
+            "safe": "true"
+          },
+          {
+            "source": "b",
+            "target": "goal",
+            "safe": "true"
+          },
+          {
+            "source": "a",
+            "target": "b",
+            "safe": "true"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "status": "ok",
+    "case": "missing_alternative",
+    "fault_type": "missing_alternative",
+    "severity": 1.0,
+    "seed": 3,
+    "learner": "ppo",
+    "method": "dirl",
+    "expected_operator": "or",
+    "actual_operator": null,
+    "first_committed_operator": null,
+    "fault_trigger_operator": null,
+    "fault_trigger_edge": [
+      "a",
+      "goal"
+    ],
+    "expected_operator_used": false,
+    "operator_correct": false,
+    "outcome_category": "no_refinement_committed",
+    "refinement_possible": true,
+    "evidence_reason": "OrRefine is structural; bottleneck edge was evaluated",
+    "baseline_reached_trajectories": 0,
+    "baseline_successful_trajectories": 0,
+    "baseline_failed_trajectories": 100,
+    "baseline_unsafe_trajectories": 0,
+    "baseline_unsafe_reached_trajectories": 0,
+    "baseline_affected_edge_probability": 0.0,
+    "committed_operators": [],
+    "operators_examined": [
+      {
+        "source": "a",
+        "target": "goal",
+        "operators_tried": [
+          "seq",
+          "add",
+          "past",
+          "or"
+        ],
+        "committed_operator": null,
+        "success_before": 0.0,
+        "success_after": 0.0,
+        "is_fault_trigger": true
+      }
+    ],
+    "initial_best_path_success": 0.0,
+    "final_best_path_success": 0.0,
+    "best_path_improvement": 0.0,
+    "initial_edge_success": [
+      {
+        "source": "start",
+        "target": "a",
+        "probability": 1.0
+      },
+      {
+        "source": "a",
+        "target": "goal",
+        "probability": 0.0
+      },
+      {
+        "source": "b",
+        "target": "goal",
+        "probability": null
+      }
+    ],
+    "final_edge_success": [
+      {
+        "source": "start",
+        "target": "a",
+        "probability": 1.0
+      },
+      {
+        "source": "a",
+        "target": "goal",
+        "probability": 0.0
+      },
+      {
+        "source": "b",
+        "target": "goal",
+        "probability": 0.0
+      }
+    ],
+    "recovery": {
+      "metric_type": "graph_structure",
+      "baseline_iou": null,
+      "repaired_iou": null,
+      "iou_improvement": null,
+      "normalized_recovery_gain": null,
+      "baseline_precision": null,
+      "baseline_recall": null,
+      "repaired_precision": null,
+      "repaired_recall": null,
+      "baseline_weighted_iou": null,
+      "repaired_weighted_iou": null,
+      "weighted_iou_improvement": null,
+      "subset_fraction": null,
+      "normalized_graph_edit_distance": 0.125,
+      "graph_similarity": 0.875,
+      "missing_edge_recovered": false,
+      "topology_recovered": false,
+      "recovered": false,
+      "recovery_reason": "missing alternative was not restored"
+    },
+    "cost": {
+      "wall_clock_seconds": 562.9359908000042,
+      "train_edge_calls": 4,
+      "continue_edge_calls": 0,
+      "estimate_calls": 4,
+      "requested_training_steps": 320000,
+      "evaluation_rollouts": 400
+    },
+    "config": {
+      "threshold": 0.8,
+      "budget": 80000,
+      "n_rollouts": 100,
+      "avoid_tail_length": 1,
+      "quality_threshold": 0.8,
+      "grid_resolution": 121
+    },
+    "fault": {
+      "description": "Removed alternative edge 'a'->'b'.",
+      "affected_vertex": null,
+      "affected_edge": [
+        "a",
+        "b"
+      ]
+    },
+    "graphs": {
+      "correct": {
+        "source": "start",
+        "target": "goal",
+        "vertices": [
+          {
+            "name": "start",
+            "region": "Rect(1, 11, 3, 13)"
+          },
+          {
+            "name": "a",
+            "region": "Rect(4, 11, 6, 13)"
+          },
+          {
+            "name": "b",
+            "region": "Rect(10, 11, 12, 13)"
+          },
+          {
+            "name": "goal",
+            "region": "Rect(19, 11, 21, 13)"
+          }
+        ],
+        "edges": [
+          {
+            "source": "start",
+            "target": "a",
+            "safe": "true"
+          },
+          {
+            "source": "a",
+            "target": "goal",
+            "safe": "true"
+          },
+          {
+            "source": "b",
+            "target": "goal",
+            "safe": "true"
+          },
+          {
+            "source": "a",
+            "target": "b",
+            "safe": "true"
+          }
+        ]
+      },
+      "faulty": {
+        "source": "start",
+        "target": "goal",
+        "vertices": [
+          {
+            "name": "start",
+            "region": "Rect(1, 11, 3, 13)"
+          },
+          {
+            "name": "a",
+            "region": "Rect(4, 11, 6, 13)"
+          },
+          {
+            "name": "b",
+            "region": "Rect(10, 11, 12, 13)"
+          },
+          {
+            "name": "goal",
+            "region": "Rect(19, 11, 21, 13)"
+          }
+        ],
+        "edges": [
+          {
+            "source": "start",
+            "target": "a",
+            "safe": "true"
+          },
+          {
+            "source": "a",
+            "target": "goal",
+            "safe": "true"
+          },
+          {
+            "source": "b",
+            "target": "goal",
+            "safe": "true"
+          }
+        ]
+      },
+      "repaired": {
+        "source": "start",
+        "target": "goal",
+        "vertices": [
+          {
+            "name": "start",
+            "region": "Rect(1, 11, 3, 13)"
+          },
+          {
+            "name": "a",
+            "region": "Rect(4, 11, 6, 13)"
+          },
+          {
+            "name": "b",
+            "region": "Rect(10, 11, 12, 13)"
+          },
+          {
+            "name": "goal",
+            "region": "Rect(19, 11, 21, 13)"
+          }
+        ],
+        "edges": [
+          {
+            "source": "start",
+            "target": "a",
+            "safe": "true"
+          },
+          {
+            "source": "a",
+            "target": "goal",
+            "safe": "true"
+          },
+          {
+            "source": "b",
+            "target": "goal",
+            "safe": "true"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "status": "ok",
+    "case": "missing_alternative",
+    "fault_type": "missing_alternative",
+    "severity": 1.0,
+    "seed": 4,
+    "learner": "ppo",
+    "method": "dirl",
+    "expected_operator": "or",
+    "actual_operator": "or",
+    "first_committed_operator": "or",
+    "fault_trigger_operator": "or",
+    "fault_trigger_edge": [
+      "a",
+      "goal"
+    ],
+    "expected_operator_used": true,
+    "operator_correct": true,
+    "outcome_category": "correct_operator_and_recovery",
+    "refinement_possible": true,
+    "evidence_reason": "OrRefine is structural; bottleneck edge was evaluated",
+    "baseline_reached_trajectories": 0,
+    "baseline_successful_trajectories": 0,
+    "baseline_failed_trajectories": 100,
+    "baseline_unsafe_trajectories": 0,
+    "baseline_unsafe_reached_trajectories": 0,
+    "baseline_affected_edge_probability": 0.0,
+    "committed_operators": [
+      "or"
+    ],
+    "operators_examined": [
+      {
+        "source": "a",
+        "target": "goal",
+        "operators_tried": [
+          "seq",
+          "add",
+          "past",
+          "or"
+        ],
+        "committed_operator": "or",
+        "success_before": 0.0,
+        "success_after": 1.0,
+        "is_fault_trigger": true
+      }
+    ],
+    "initial_best_path_success": 0.0,
+    "final_best_path_success": 1.0,
+    "best_path_improvement": 1.0,
+    "initial_edge_success": [
+      {
+        "source": "start",
+        "target": "a",
+        "probability": 1.0
+      },
+      {
+        "source": "a",
+        "target": "goal",
+        "probability": 0.0
+      },
+      {
+        "source": "b",
+        "target": "goal",
+        "probability": null
+      }
+    ],
+    "final_edge_success": [
+      {
+        "source": "start",
+        "target": "a",
+        "probability": 1.0
+      },
+      {
+        "source": "a",
+        "target": "goal",
+        "probability": 0.0
+      },
+      {
+        "source": "b",
+        "target": "goal",
+        "probability": 1.0
+      },
+      {
+        "source": "a",
+        "target": "b",
+        "probability": 1.0
+      }
+    ],
+    "recovery": {
+      "metric_type": "graph_structure",
+      "baseline_iou": null,
+      "repaired_iou": null,
+      "iou_improvement": null,
+      "normalized_recovery_gain": null,
+      "baseline_precision": null,
+      "baseline_recall": null,
+      "repaired_precision": null,
+      "repaired_recall": null,
+      "baseline_weighted_iou": null,
+      "repaired_weighted_iou": null,
+      "weighted_iou_improvement": null,
+      "subset_fraction": null,
+      "normalized_graph_edit_distance": 0.0,
+      "graph_similarity": 1.0,
+      "missing_edge_recovered": true,
+      "topology_recovered": true,
+      "recovered": true,
+      "recovery_reason": "missing alternative and graph structure recovered"
+    },
+    "cost": {
+      "wall_clock_seconds": 1127.2682495000045,
+      "train_edge_calls": 8,
+      "continue_edge_calls": 0,
+      "estimate_calls": 8,
+      "requested_training_steps": 640000,
+      "evaluation_rollouts": 800
+    },
+    "config": {
+      "threshold": 0.8,
+      "budget": 80000,
+      "n_rollouts": 100,
+      "avoid_tail_length": 1,
+      "quality_threshold": 0.8,
+      "grid_resolution": 121
+    },
+    "fault": {
+      "description": "Removed alternative edge 'a'->'b'.",
+      "affected_vertex": null,
+      "affected_edge": [
+        "a",
+        "b"
+      ]
+    },
+    "graphs": {
+      "correct": {
+        "source": "start",
+        "target": "goal",
+        "vertices": [
+          {
+            "name": "start",
+            "region": "Rect(1, 11, 3, 13)"
+          },
+          {
+            "name": "a",
+            "region": "Rect(4, 11, 6, 13)"
+          },
+          {
+            "name": "b",
+            "region": "Rect(10, 11, 12, 13)"
+          },
+          {
+            "name": "goal",
+            "region": "Rect(19, 11, 21, 13)"
+          }
+        ],
+        "edges": [
+          {
+            "source": "start",
+            "target": "a",
+            "safe": "true"
+          },
+          {
+            "source": "a",
+            "target": "goal",
+            "safe": "true"
+          },
+          {
+            "source": "b",
+            "target": "goal",
+            "safe": "true"
+          },
+          {
+            "source": "a",
+            "target": "b",
+            "safe": "true"
+          }
+        ]
+      },
+      "faulty": {
+        "source": "start",
+        "target": "goal",
+        "vertices": [
+          {
+            "name": "start",
+            "region": "Rect(1, 11, 3, 13)"
+          },
+          {
+            "name": "a",
+            "region": "Rect(4, 11, 6, 13)"
+          },
+          {
+            "name": "b",
+            "region": "Rect(10, 11, 12, 13)"
+          },
+          {
+            "name": "goal",
+            "region": "Rect(19, 11, 21, 13)"
+          }
+        ],
+        "edges": [
+          {
+            "source": "start",
+            "target": "a",
+            "safe": "true"
+          },
+          {
+            "source": "a",
+            "target": "goal",
+            "safe": "true"
+          },
+          {
+            "source": "b",
+            "target": "goal",
+            "safe": "true"
+          }
+        ]
+      },
+      "repaired": {
+        "source": "start",
+        "target": "goal",
+        "vertices": [
+          {
+            "name": "start",
+            "region": "Rect(1, 11, 3, 13)"
+          },
+          {
+            "name": "a",
+            "region": "Rect(4, 11, 6, 13)"
+          },
+          {
+            "name": "b",
+            "region": "Rect(10, 11, 12, 13)"
+          },
+          {
+            "name": "goal",
+            "region": "Rect(19, 11, 21, 13)"
+          }
+        ],
+        "edges": [
+          {
+            "source": "start",
+            "target": "a",
+            "safe": "true"
+          },
+          {
+            "source": "a",
+            "target": "goal",
+            "safe": "true"
+          },
+          {
+            "source": "b",
+            "target": "goal",
+            "safe": "true"
+          },
+          {
+            "source": "a",
+            "target": "b",
+            "safe": "true"
+          }
+        ]
+      }
+    }
+  }
+]

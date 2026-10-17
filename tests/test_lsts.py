@@ -581,3 +581,40 @@ def test_lsts_epsilon_zero_exploits_highest_q_task():
     ) > calls.count(
         ("start", "B")
     )
+
+def test_lsts_default_budget_scales_with_usable_edges():
+    """Without an explicit cap, LSTS gets one base budget per usable edge."""
+
+    graph = _branch_graph()
+
+    learner = FakeLSTSLearner(
+        {
+            ("start", "A"): [0.2],
+            ("start", "B"): [0.2],
+            ("A", "goal"): [0.2],
+            ("B", "goal"): [0.2],
+        }
+    )
+
+    lsts = LSTS(
+        epsilon=0.0,
+        alpha=1.0,
+        threshold=0.9,
+        tolerance=0.01,
+        chunk_size=10,
+        max_interactions=None,
+    )
+
+    lsts.learn_graph(
+        graph=graph,
+        env=object(),
+        edge_learner=learner,
+        budget=10,
+        n_rollouts=10,
+        seed=0,
+    )
+
+    # Four graph edges can reach the target, so the fair total allowance is
+    # 4 * 10 = 40 interactions. The tasks never converge, so the full budget
+    # should be consumed.
+    assert learner.total_training_budget == 40

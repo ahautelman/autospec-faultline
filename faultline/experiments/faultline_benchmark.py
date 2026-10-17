@@ -41,10 +41,14 @@ class FaultLineSettings:
     lsts_epsilon: float = 0.30
     lsts_alpha: float = 0.20
     lsts_tolerance: float = 0.10
-    lsts_chunk_size: int = 5_000
+    lsts_chunk_size: int = 4_096
     lsts_max_interactions: int | None = None
 
     max_recorded_visit_states: int = 200_000
+
+    # Console/file verbosity. Full experiments should normally keep these False.
+    verbose: bool = False
+    write_individual_json: bool = False
 
 
 @dataclass(frozen=True)
@@ -146,20 +150,14 @@ def run_fault_case(
     case = benchmark.fault
     trigger_edge = _fault_trigger_edge(case)
 
-    print("\n" + "=" * 88)
-    print(
-        f"FAULTLINE | case={case.name} | fault={case.fault_type.value} | "
-        f"method={settings.method} | learner={settings.learner} | seed={seed}"
-    )
-    print("=" * 88)
-    print(f"Expected operator : {case.expected_operator}")
-    print(f"Fault trigger edge: {trigger_edge}")
-    print(f"Description       : {case.description}")
-    print(
-        f"Graphs            : correct V={len(case.correct_graph.vertices)} "
-        f"E={len(case.correct_graph.edges)} | faulty V={len(case.faulty_graph.vertices)} "
-        f"E={len(case.faulty_graph.edges)}"
-    )
+    if settings.verbose:
+        print("\n" + "=" * 72)
+        print(
+            f"{case.name} | method={settings.method} | learner={settings.learner} | seed={seed}"
+        )
+        print("=" * 72)
+        print(f"Expected operator : {case.expected_operator}")
+        print(f"Fault trigger edge: {trigger_edge}")
 
     env = benchmark.make_env()
     counted = CountingLearner(
@@ -175,16 +173,16 @@ def run_fault_case(
         seed=seed,
     )
 
-    print(
-        f"Config            : threshold={settings.threshold:.2f}, "
-        f"budget={settings.budget}, rollouts={settings.n_rollouts}, "
-        f"avoid_tail={settings.avoid_tail_length}, max_steps={env.max_steps}"
-    )
-    print(
-        "Graph learner     : "
-        f"{type(graph_learner).__name__ if graph_learner is not None else 'base/direct'}"
-    )
-    print("Running AutoSpec...")
+    if settings.verbose:
+        print(
+            f"Config            : threshold={settings.threshold:.2f}, "
+            f"budget={settings.budget}, rollouts={settings.n_rollouts}, "
+            f"avoid_tail={settings.avoid_tail_length}, max_steps={env.max_steps}"
+        )
+        print(
+            "Graph learner     : "
+            f"{type(graph_learner).__name__ if graph_learner is not None else 'base/direct'}"
+        )
 
     started = time.perf_counter()
     try:
@@ -197,11 +195,12 @@ def run_fault_case(
         )
     except Exception as exc:
         elapsed = time.perf_counter() - started
-        print(f"RUN FAILED        : {type(exc).__name__}: {exc}")
+        if settings.verbose:
+            print(f"RUN FAILED        : {type(exc).__name__}: {exc}")
         return _failed_record(case, settings, seed, elapsed, counted, exc)
     elapsed = time.perf_counter() - started
 
-    baseline_record = _baseline_evidence(case, counted.estimate_records)
+    baseline_record = _baseline_evidence(case, counted.estimate_records, run)
     evidence = _evidence_summary(case, baseline_record)
     baseline_states = baseline_record.visit_states if baseline_record is not None else ()
 
@@ -236,66 +235,67 @@ def run_fault_case(
         actual_operator=actual_operator,
     )
 
-    print("\n--- Baseline evidence on the injected fault ---")
-    if baseline_record is None:
-        print("Affected edge      : not learned/evaluated by the graph learner")
-    else:
-        print(f"Affected edge      : {baseline_record.source}->{baseline_record.target}")
-        print(f"Success probability: {baseline_record.probability:.3f}")
-        print(
-            "Rollouts           : "
-            f"reached={baseline_record.reached_rollouts}, "
-            f"success={baseline_record.successes}, "
-            f"failure={baseline_record.failures}, "
-            f"unsafe={baseline_record.unsafe_rollouts}, "
-            f"unsafe+reached={baseline_record.unsafe_reached_rollouts}"
-        )
-    print(f"Refinement data ok : {evidence['refinement_possible']}")
-    print(f"Evidence reason    : {evidence['reason']}")
+    if settings.verbose:
+        print("\n--- Baseline evidence on the injected fault ---")
+        if baseline_record is None:
+            print("Affected edge      : not learned/evaluated by the graph learner")
+        else:
+            print(f"Affected edge      : {baseline_record.source}->{baseline_record.target}")
+            print(f"Success probability: {baseline_record.probability:.3f}")
+            print(
+                "Rollouts           : "
+                f"reached={baseline_record.reached_rollouts}, "
+                f"success={baseline_record.successes}, "
+                f"failure={baseline_record.failures}, "
+                f"unsafe={baseline_record.unsafe_rollouts}, "
+                f"unsafe+reached={baseline_record.unsafe_reached_rollouts}"
+            )
+        print(f"Refinement data ok : {evidence['refinement_possible']}")
+        print(f"Evidence reason    : {evidence['reason']}")
 
-    print("\n--- AutoSpec decisions ---")
-    if not run.steps:
-        print("No learned weak edge was examined for refinement.")
-    for index, step in enumerate(run.steps, start=1):
-        marker = " <-- injected fault" if (
-            trigger_edge is not None
-            and (step.source, step.target) == trigger_edge
-        ) else ""
-        print(
-            f"[{index}] {step.source}->{step.target} | before={step.before:.3f} | "
-            f"tried={list(step.operators_tried)} | committed={step.operator} | "
-            f"after={step.after:.3f}{marker}"
-        )
+        print("\n--- AutoSpec decisions ---")
+        if not run.steps:
+            print("No learned weak edge was examined for refinement.")
+        for index, step in enumerate(run.steps, start=1):
+            marker = " <-- injected fault" if (
+                trigger_edge is not None
+                and (step.source, step.target) == trigger_edge
+            ) else ""
+            print(
+                f"[{index}] {step.source}->{step.target} | before={step.before:.3f} | "
+                f"tried={list(step.operators_tried)} | committed={step.operator} | "
+                f"after={step.after:.3f}{marker}"
+            )
 
-    print("\n--- Recovery ---")
-    print(f"Expected operator : {case.expected_operator}")
-    print(f"First committed   : {first_committed_operator}")
-    print(f"Trigger operator  : {fault_trigger_operator}")
-    print(f"Expected used     : {expected_operator_used}")
-    print(f"Operator correct  : {operator_correct}")
-    print(f"Initial best path : {initial_best_path:.3f}")
-    print(f"Final best path   : {run.best_path_success:.3f}")
-    print(f"Metric type       : {recovery['metric_type']}")
-    _print_optional("Baseline IoU      ", recovery.get("baseline_iou"))
-    _print_optional("Repaired IoU      ", recovery.get("repaired_iou"))
-    _print_optional("Recovery gain     ", recovery.get("normalized_recovery_gain"))
-    _print_optional("Repaired precision", recovery.get("repaired_precision"))
-    _print_optional("Repaired recall   ", recovery.get("repaired_recall"))
-    _print_optional("Baseline wIoU     ", recovery.get("baseline_weighted_iou"))
-    _print_optional("Repaired wIoU     ", recovery.get("repaired_weighted_iou"))
-    _print_optional("Graph edit dist.  ", recovery.get("normalized_graph_edit_distance"))
-    _print_optional("Graph similarity  ", recovery.get("graph_similarity"))
-    print(f"Recovered         : {recovery['recovered']}")
-    print(f"Recovery reason   : {recovery['recovery_reason']}")
-    print(f"Outcome category  : {outcome_category}")
+        print("\n--- Recovery ---")
+        print(f"Expected operator : {case.expected_operator}")
+        print(f"First committed   : {first_committed_operator}")
+        print(f"Trigger operator  : {fault_trigger_operator}")
+        print(f"Expected used     : {expected_operator_used}")
+        print(f"Operator correct  : {operator_correct}")
+        print(f"Initial best path : {initial_best_path:.3f}")
+        print(f"Final best path   : {run.best_path_success:.3f}")
+        print(f"Metric type       : {recovery['metric_type']}")
+        _print_optional("Baseline IoU      ", recovery.get("baseline_iou"))
+        _print_optional("Repaired IoU      ", recovery.get("repaired_iou"))
+        _print_optional("Recovery gain     ", recovery.get("normalized_recovery_gain"))
+        _print_optional("Repaired precision", recovery.get("repaired_precision"))
+        _print_optional("Repaired recall   ", recovery.get("repaired_recall"))
+        _print_optional("Baseline wIoU     ", recovery.get("baseline_weighted_iou"))
+        _print_optional("Repaired wIoU     ", recovery.get("repaired_weighted_iou"))
+        _print_optional("Graph edit dist.  ", recovery.get("normalized_graph_edit_distance"))
+        _print_optional("Graph similarity  ", recovery.get("graph_similarity"))
+        print(f"Recovered         : {recovery['recovered']}")
+        print(f"Recovery reason   : {recovery['recovery_reason']}")
+        print(f"Outcome category  : {outcome_category}")
 
-    print("\n--- Cost ---")
-    print(f"train_edge calls  : {counted.train_edge_calls}")
-    print(f"continue calls    : {counted.continue_edge_calls}")
-    print(f"estimate calls    : {counted.estimate_calls}")
-    print(f"requested steps   : {counted.requested_training_steps}")
-    print(f"evaluation rollouts: {counted.evaluation_rollouts}")
-    print(f"wall-clock        : {elapsed:.2f}s")
+        print("\n--- Cost ---")
+        print(f"train_edge calls  : {counted.train_edge_calls}")
+        print(f"continue calls    : {counted.continue_edge_calls}")
+        print(f"estimate calls    : {counted.estimate_calls}")
+        print(f"requested steps   : {counted.requested_training_steps}")
+        print(f"evaluation rollouts: {counted.evaluation_rollouts}")
+        print(f"wall-clock        : {elapsed:.2f}s")
 
     return {
         "status": "ok",
@@ -390,34 +390,34 @@ def run_faultline_experiment(
     cases: tuple[FaultBenchmarkCase, ...],
     settings: FaultLineSettings,
 ) -> list[dict[str, Any]]:
-    """Run all requested fault cases/seeds and persist JSON plus CSV outputs."""
+    """Run all requested fault cases/seeds and persist compact outputs."""
 
     output_dir = Path(settings.output_directory)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    print("\n" + "#" * 88)
-    print("FAULTLINE EXPERIMENT")
-    print("#" * 88)
-    print(f"Cases             : {len(cases)}")
-    print(f"Seeds             : {settings.seeds}")
-    print(f"Learner / method  : {settings.learner} / {settings.method}")
-    print(f"Output directory  : {output_dir.resolve()}")
+    total = len(cases) * len(settings.seeds)
+    print(
+        f"FaultLine: {total} runs | method={settings.method} | "
+        f"learner={settings.learner} | output={output_dir.resolve()}"
+    )
 
     records: list[dict[str, Any]] = []
-    total = len(cases) * len(settings.seeds)
     index = 0
 
     for benchmark in cases:
         for seed in settings.seeds:
             index += 1
-            print(f"\nStarting run {index}/{total}")
             record = run_fault_case(benchmark, settings, seed)
             records.append(record)
-            _write_json(
-                output_dir / f"{record['case']}__{settings.method}__seed{seed}.json",
-                record,
-            )
+            _print_run_line(index, total, record)
 
+            if settings.write_individual_json:
+                _write_json(
+                    output_dir / f"{record['case']}__{settings.method}__seed{seed}.json",
+                    record,
+                )
+
+    # Keep one detailed machine-readable file plus one compact analysis CSV.
     _write_json(output_dir / "all_runs.json", records)
     _write_summary_csv(output_dir / "summary.csv", records)
     _print_batch_summary(records, output_dir)
@@ -473,16 +473,61 @@ def _fault_trigger_step(case: FaultCase, run: AutoSpecRun):
 def _baseline_evidence(
     case: FaultCase,
     records: list[EstimateRecord],
+    run: AutoSpecRun,
 ) -> EstimateRecord | None:
-    """Return the first evaluation of the fault's trigger edge."""
+    """Return the evaluation AutoSpec actually used as the initial edge estimate.
+
+    LSTS evaluates the same active edge repeatedly while allocating training
+    chunks.  The first of those evaluations can be very poor even though the
+    final estimate handed to AutoSpec is much better.  Reporting the first
+    record therefore mislabels valid runs as evidence-starved.
+
+    Match the trigger edge to ``run.initial_edge_success`` and then select the
+    first recorded evaluation with that probability.  The initial graph-learning
+    phase precedes all refinement-candidate evaluations, so the first matching
+    record is the one associated with AutoSpec's initial cache.  A nearest-value
+    fallback is retained for harmless floating-point representation differences.
+    """
 
     trigger = _fault_trigger_edge(case)
     if trigger is None:
         return None
-    for record in records:
-        if (record.source, record.target) == trigger:
+
+    trigger_records = [
+        record
+        for record in records
+        if (record.source, record.target) == trigger
+    ]
+    if not trigger_records:
+        return None
+
+    initial_probability = None
+    for item in run.initial_edge_success:
+        if (item.source, item.target) == trigger:
+            initial_probability = item.probability
+            break
+
+    if initial_probability is None:
+        # The graph learner did not expose a learned policy for this edge.
+        return None
+
+    target = float(initial_probability)
+
+    for record in trigger_records:
+        if np.isclose(
+            record.probability,
+            target,
+            rtol=1e-9,
+            atol=1e-12,
+        ):
             return record
-    return None
+
+    # Defensive fallback: probabilities should normally match exactly because
+    # both values originate from the same EdgeEstimate.
+    return min(
+        trigger_records,
+        key=lambda record: abs(record.probability - target),
+    )
 
 
 def _evidence_summary(
@@ -587,14 +632,13 @@ def _make_graph_learner(settings: FaultLineSettings):
     if settings.method == "lsts":
         if settings.learner != "ppo":
             raise ValueError("LSTS requires PPOEdgeLearner because it needs continue_edge()")
-        total = settings.lsts_max_interactions or settings.budget
         return LSTS(
             epsilon=settings.lsts_epsilon,
             alpha=settings.lsts_alpha,
             threshold=settings.threshold,
             tolerance=settings.lsts_tolerance,
             chunk_size=settings.lsts_chunk_size,
-            max_interactions=total,
+            max_interactions=settings.lsts_max_interactions,
         )
     raise ValueError("method must be 'base', 'dirl', or 'lsts'")
 
@@ -691,59 +735,31 @@ def _write_json(path: Path, data: Any) -> None:
 
 
 def _write_summary_csv(path: Path, records: list[dict[str, Any]]) -> None:
+    """Write the compact table intended for normal experiment analysis."""
+
     columns = [
         "status",
         "case",
-        "fault_type",
-        "severity",
         "seed",
         "learner",
         "method",
         "expected_operator",
         "actual_operator",
-        "first_committed_operator",
-        "fault_trigger_operator",
-        "fault_trigger_source",
-        "fault_trigger_target",
-        "expected_operator_used",
         "operator_correct",
-        "outcome_category",
-        "refinement_possible",
-        "evidence_reason",
-        "baseline_reached_trajectories",
-        "baseline_successful_trajectories",
-        "baseline_failed_trajectories",
-        "baseline_unsafe_trajectories",
-        "baseline_unsafe_reached_trajectories",
-        "baseline_affected_edge_probability",
-        "initial_best_path_success",
-        "final_best_path_success",
-        "best_path_improvement",
-        "metric_type",
-        "baseline_iou",
-        "repaired_iou",
-        "iou_improvement",
-        "normalized_recovery_gain",
-        "baseline_precision",
-        "baseline_recall",
-        "repaired_precision",
-        "repaired_recall",
-        "baseline_weighted_iou",
-        "repaired_weighted_iou",
-        "weighted_iou_improvement",
-        "subset_fraction",
-        "normalized_graph_edit_distance",
-        "graph_similarity",
-        "missing_edge_recovered",
-        "topology_recovered",
+        "evidence_available",
+        "baseline_probability",
+        "successful_rollouts",
+        "failed_rollouts",
+        "unsafe_rollouts",
+        "initial_best_path",
+        "final_best_path",
+        "recovery_metric",
+        "recovery_score",
         "recovered",
-        "recovery_reason",
-        "wall_clock_seconds",
-        "train_edge_calls",
-        "continue_edge_calls",
-        "estimate_calls",
-        "requested_training_steps",
+        "outcome",
+        "training_steps",
         "evaluation_rollouts",
+        "wall_clock_seconds",
         "error",
     ]
 
@@ -754,120 +770,122 @@ def _write_summary_csv(path: Path, records: list[dict[str, Any]]) -> None:
         for record in records:
             recovery = record.get("recovery", {})
             cost = record.get("cost", {})
-            trigger = record.get("fault_trigger_edge") or [None, None]
-            row = {column: None for column in columns}
+            score_name, score_value = _primary_recovery_score(recovery)
 
-            for key in [
-                "status",
-                "case",
-                "fault_type",
-                "severity",
-                "seed",
-                "learner",
-                "method",
-                "expected_operator",
-                "actual_operator",
-                "first_committed_operator",
-                "fault_trigger_operator",
-                "expected_operator_used",
-                "operator_correct",
-                "outcome_category",
-                "refinement_possible",
-                "evidence_reason",
-                "baseline_reached_trajectories",
-                "baseline_successful_trajectories",
-                "baseline_failed_trajectories",
-                "baseline_unsafe_trajectories",
-                "baseline_unsafe_reached_trajectories",
-                "baseline_affected_edge_probability",
-                "initial_best_path_success",
-                "final_best_path_success",
-                "best_path_improvement",
-                "error",
-            ]:
-                row[key] = record.get(key)
+            writer.writerow(
+                {
+                    "status": record.get("status"),
+                    "case": record.get("case"),
+                    "seed": record.get("seed"),
+                    "learner": record.get("learner"),
+                    "method": record.get("method"),
+                    "expected_operator": record.get("expected_operator"),
+                    "actual_operator": record.get("actual_operator"),
+                    "operator_correct": record.get("operator_correct"),
+                    "evidence_available": record.get("refinement_possible"),
+                    "baseline_probability": record.get("baseline_affected_edge_probability"),
+                    "successful_rollouts": record.get("baseline_successful_trajectories"),
+                    "failed_rollouts": record.get("baseline_failed_trajectories"),
+                    "unsafe_rollouts": record.get("baseline_unsafe_trajectories"),
+                    "initial_best_path": record.get("initial_best_path_success"),
+                    "final_best_path": record.get("final_best_path_success"),
+                    "recovery_metric": score_name,
+                    "recovery_score": score_value,
+                    "recovered": recovery.get("recovered"),
+                    "outcome": record.get("outcome_category"),
+                    "training_steps": cost.get("requested_training_steps"),
+                    "evaluation_rollouts": cost.get("evaluation_rollouts"),
+                    "wall_clock_seconds": cost.get("wall_clock_seconds"),
+                    "error": record.get("error"),
+                }
+            )
 
-            row["fault_trigger_source"] = trigger[0] if len(trigger) > 0 else None
-            row["fault_trigger_target"] = trigger[1] if len(trigger) > 1 else None
 
-            for key in [
-                "metric_type",
-                "baseline_iou",
-                "repaired_iou",
-                "iou_improvement",
-                "normalized_recovery_gain",
-                "baseline_precision",
-                "baseline_recall",
-                "repaired_precision",
-                "repaired_recall",
-                "baseline_weighted_iou",
-                "repaired_weighted_iou",
-                "weighted_iou_improvement",
-                "subset_fraction",
-                "normalized_graph_edit_distance",
-                "graph_similarity",
-                "missing_edge_recovered",
-                "topology_recovered",
-                "recovered",
-                "recovery_reason",
-            ]:
-                row[key] = recovery.get(key)
+def _primary_recovery_score(recovery: dict[str, Any]) -> tuple[str | None, float | None]:
+    """Return the one ground-truth score most relevant to the fault type."""
 
-            for key in [
-                "wall_clock_seconds",
-                "train_edge_calls",
-                "continue_edge_calls",
-                "estimate_calls",
-                "requested_training_steps",
-                "evaluation_rollouts",
-            ]:
-                row[key] = cost.get(key)
+    gain = recovery.get("normalized_recovery_gain")
+    if gain is not None:
+        return "recovery_gain", float(gain)
 
-            writer.writerow(row)
+    similarity = recovery.get("graph_similarity")
+    if similarity is not None:
+        return "graph_similarity", float(similarity)
+
+    return None, None
+
+
+def _print_run_line(index: int, total: int, record: dict[str, Any]) -> None:
+    """Print one compact status line per run."""
+
+    if record.get("status") != "ok":
+        print(
+            f"[{index:02d}/{total:02d}] {record.get('case')} seed={record.get('seed')} "
+            f"FAILED: {record.get('error')}"
+        )
+        return
+
+    recovery = record.get("recovery", {})
+    _score_name, score = _primary_recovery_score(recovery)
+    score_text = "n/a" if score is None else f"{score:.2f}"
+    op_ok = "Y" if record.get("operator_correct") else "N"
+    rec_ok = "Y" if recovery.get("recovered") else "N"
+    p0 = record.get("initial_best_path_success")
+    p1 = record.get("final_best_path_success")
+    cost = record.get("cost", {})
+
+    print(
+        f"[{index:02d}/{total:02d}] {record.get('case'):20s} seed={record.get('seed')} | "
+        f"p {p0:.2f}->{p1:.2f} | "
+        f"op {record.get('actual_operator') or '-'} / {record.get('expected_operator')} [{op_ok}] | "
+        f"recovery {score_text} [{rec_ok}] | "
+        f"{cost.get('wall_clock_seconds', 0.0):.1f}s"
+    )
 
 
 def _print_batch_summary(records: list[dict[str, Any]], output_dir: Path) -> None:
     ok = [record for record in records if record.get("status") == "ok"]
-    diagnosable = [record for record in ok if bool(record.get("refinement_possible"))]
+    evidence = [record for record in ok if bool(record.get("refinement_possible"))]
 
-    print("\n" + "#" * 88)
-    print("EXPERIMENT COMPLETE")
-    print("#" * 88)
-    print(f"Successful runs   : {len(ok)}/{len(records)}")
-    print(f"Diagnosable runs  : {len(diagnosable)}/{len(ok) if ok else 0}")
+    print("\nExperiment summary")
+    print("-" * 72)
 
-    if ok:
-        correct_all = sum(bool(record.get("operator_correct")) for record in ok)
-        print(f"Operator accuracy : {correct_all}/{len(ok)} (all successful runs)")
+    if not ok:
+        print(f"0/{len(records)} runs completed successfully.")
+        print(f"Results: {output_dir.resolve()}")
+        return
 
-    if diagnosable:
-        correct_diag = sum(bool(record.get("operator_correct")) for record in diagnosable)
-        recovered_diag = sum(
-            bool(record.get("recovery", {}).get("recovered"))
-            for record in diagnosable
-        )
-        print(
-            "Operator accuracy | evidence available: "
-            f"{correct_diag}/{len(diagnosable)}"
-        )
-        print(
-            "Ground-truth recovery | evidence available: "
-            f"{recovered_diag}/{len(diagnosable)}"
-        )
-    else:
-        print("Operator accuracy | evidence available: n/a")
-        print("Ground-truth recovery | evidence available: n/a")
+    correct = sum(bool(record.get("operator_correct")) for record in evidence)
+    recovered = sum(
+        bool(record.get("recovery", {}).get("recovered"))
+        for record in evidence
+    )
 
-    categories: dict[str, int] = {}
+    print(
+        f"Runs: {len(ok)}/{len(records)} ok | evidence: {len(evidence)}/{len(ok)} | "
+        f"operator: {correct}/{len(evidence) if evidence else 0} | "
+        f"recovery: {recovered}/{len(evidence) if evidence else 0}"
+    )
+
+    by_case: dict[str, list[dict[str, Any]]] = {}
     for record in ok:
-        category = str(record.get("outcome_category", "unknown"))
-        categories[category] = categories.get(category, 0) + 1
-    if categories:
-        print("Outcome categories:")
-        for category, count in sorted(categories.items()):
-            print(f"  {category}: {count}")
+        by_case.setdefault(str(record.get("case")), []).append(record)
 
-    print(f"Results written to: {output_dir.resolve()}")
+    for case_name, group in by_case.items():
+        group_evidence = [r for r in group if bool(r.get("refinement_possible"))]
+        op_count = sum(bool(r.get("operator_correct")) for r in group_evidence)
+        rec_count = sum(
+            bool(r.get("recovery", {}).get("recovered"))
+            for r in group_evidence
+        )
+        before = sum(float(r.get("initial_best_path_success", 0.0)) for r in group) / len(group)
+        after = sum(float(r.get("final_best_path_success", 0.0)) for r in group) / len(group)
+        print(
+            f"  {case_name:20s} op {op_count}/{len(group_evidence)} | "
+            f"recovery {rec_count}/{len(group_evidence)} | p {before:.2f}->{after:.2f}"
+        )
+
+    print(f"Results: {output_dir.resolve()}")
 
 
 def _print_optional(label: str, value: Any) -> None:

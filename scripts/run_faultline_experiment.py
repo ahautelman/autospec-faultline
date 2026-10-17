@@ -1,9 +1,10 @@
-"""Easy entry point for the FaultLine experiment.
+"""Single entry point for the FaultLine experiments.
 
 Recommended order:
-1. RUN_SET = "overwide" in quick mode to validate the revised safety case.
-2. RUN_SET = "all" in quick mode for all five faults, one seed.
-3. MODE = "full" only after every quick case has usable evidence.
+1. Keep MODE="quick", METHOD="lsts", RUN_SET="all" and run one seed.
+2. If all five cases finish sensibly, change MODE="full".
+3. For a final apples-to-apples comparison, rerun DiRL with METHOD="dirl"
+   after the evaluation-seed change in this patch.
 
 Run from the project root:
     uv run --extra interop python scripts/run_faultline_experiment.py
@@ -23,12 +24,15 @@ from faultline.faults import (
 )
 
 
-MODE = "full"          # "quick" or "full"
-METHOD = "dirl"         # "base", "dirl", or "lsts"
-LEARNER = "ppo"         # "ppo" or "tabular"
+# ---------------------------------------------------------------------------
+# Change only these three values for normal use.
+# ---------------------------------------------------------------------------
 
-# "goal_trap", "overwide", "unreachable", "waypoint", "alternative", or "all"
-RUN_SET = "all"
+MODE = "full"           # "quick" or "full"
+METHOD = "lsts"          # "dirl", "lsts", or "base"
+RUN_SET = "all"          # one case name below, or "all"
+
+LEARNER = "ppo"
 
 
 _CASES = {
@@ -53,13 +57,17 @@ if MODE == "quick":
         threshold=0.80,
         budget=20_000,
         n_rollouts=30,
-        avoid_tail_length=3,
+        avoid_tail_length=1,
         seeds=(0,),
         quality_threshold=0.80,
         grid_resolution=101,
         output_directory=f"results/faultline_quick_{METHOD}_{RUN_SET}",
-        lsts_chunk_size=2_500,
-        lsts_max_interactions=20_000,
+        lsts_chunk_size=4_096,
+        # None is intentional: LSTS now receives budget per usable edge.
+        lsts_max_interactions=None,
+        # Quick mode keeps the useful per-run diagnostics on screen.
+        verbose=True,
+        write_individual_json=False,
     )
 
 elif MODE == "full":
@@ -69,13 +77,18 @@ elif MODE == "full":
         threshold=0.80,
         budget=80_000,
         n_rollouts=100,
-        avoid_tail_length=3,
+        avoid_tail_length=1,
         seeds=(0, 1, 2, 3, 4),
         quality_threshold=0.80,
         grid_resolution=121,
         output_directory=f"results/faultline_full_{METHOD}_{RUN_SET}",
-        lsts_chunk_size=5_000,
-        lsts_max_interactions=80_000,
+        lsts_chunk_size=4_096,
+        # Fair comparison with DiRL: LSTS total budget is computed as
+        # 80k * number of usable graph edges.
+        lsts_max_interactions=None,
+        # Full runs print one compact line per seed instead of large blocks.
+        verbose=False,
+        write_individual_json=False,
     )
 
 else:

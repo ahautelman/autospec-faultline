@@ -378,11 +378,50 @@ def run_autospec(
         )
         steps.append(step)
 
+        # if step.operator is not None and graph_learner is not None:
+        #     cache = trainer.from_graph_learner(
+        #         working,
+        #         graph_learner,
+        #     )
+        # CHANGED TO HAVE BETTER CACHE, SOME VALUES WERE WORSE AFTER RERUNNING
         if step.operator is not None and graph_learner is not None:
-            cache = trainer.from_graph_learner(
+            # Re-run the graph-level learner so that a refinement can expose
+            # previously unexplored edges.
+            #
+            # IMPORTANT:
+            # Do not throw away policies that were just trained while scoring
+            # and accepting the refinement candidate. Those policies are the
+            # evidence on which the commit decision was based.
+            learned_cache = trainer.from_graph_learner(
                 working,
                 graph_learner,
             )
+
+            merged_cache = {}
+
+            for current_edge in working.edges:
+                current_key = _edge_key(
+                    current_edge
+                )
+
+                # Prefer an existing candidate/unchanged policy. Only take a
+                # newly learned DiRL/LSTS policy when this edge was not already
+                # present in the accepted candidate cache.
+                if current_key in cache:
+                    merged_cache[
+                        current_key
+                    ] = cache[
+                        current_key
+                    ]
+
+                elif current_key in learned_cache:
+                    merged_cache[
+                        current_key
+                    ] = learned_cache[
+                        current_key
+                    ]
+
+            cache = merged_cache
 
 
     # probabilities = {

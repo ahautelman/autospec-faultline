@@ -107,9 +107,11 @@ def overwide_safety_case(severity: float = 1.0) -> FaultBenchmarkCase:
     start = Box((1.0, 3.25), (2.0, 4.75))
     goal = Box((6.0, 3.25), (7.0, 4.75))
 
-    # A compact central strip.  Direct motion hits it, but the top and bottom of
-    # the 8x8 room leave enough clearance for a short detour.
-    hazard = Box((3.0, 3.0), (5.0, 5.0))
+    # A long but vertically narrow strip. Its x-width is deliberately larger
+    # than MAX_SPEED (=2), so the point-mass agent cannot jump across it in a
+    # single step. Its narrow y-range means a direct policy hits it often, but
+    # not always, and a small vertical detour is easy to learn after AvoidRefine.
+    hazard = Box((3.0, 3.75), (5.2, 4.25))
 
     correct_safe = Not(hazard)
     graph = _single_edge(start, goal, correct_safe)
@@ -127,9 +129,8 @@ def overwide_safety_case(severity: float = 1.0) -> FaultBenchmarkCase:
         fault=fault,
         make_env=lambda: HiddenHazardRooms9(
             layout=RoomsLayout(doors={}),
-            max_steps=12,
+            max_steps=20,
             hidden_unsafe_region=hazard,
-            hidden_hazard_reward=0.0,
         ),
     )
 
