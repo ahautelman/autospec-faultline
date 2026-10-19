@@ -92,3 +92,11 @@ Open: `oracle_valid_operators` (which operators pass the threshold with oracle w
 runner (step 8); M4/M5 have no region ceiling (structural repair, scored by GED and the audit); S* needs end-to-end
 trajectories of the repaired routes, supplied by the runner via `experiments/satisfaction`. `min_semantic_class_count` in the
 protocol is not used yet. The old `experiments/faultline_metrics.py` stays until T9.
+
+## Step 7 status (baselines and instrumentation regression)
+Built `faultline/baselines.py` (`unrefined`, `oracle`, `trivializer`, `random_operator`, `graph_baselines`) and
+`faultline/metrics/evaluate.py` (`evaluate_repair`, `f1` of removal and retention). T7: on the M1 fixture the baselines order as
+unrefined (F1 0) < trivializer (removal 1, retention < 0.2, F1 < 0.3) < oracle (F1 1, GED 0). T8: `random_operator` patches
+only the loop's operator tuple, restores it, is deterministic in its rng and shuffles the order of tries; `evaluate_repair` is
+deterministic. The loop and learners are untouched. Limits: `random_operator` patches a module global, so run one per
+process; `oracle` for M4/M5 is the gold graph, not an operator-limited repair.
