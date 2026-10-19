@@ -128,3 +128,14 @@ faulty, PPO is penalised by the physical trap either way, so M2 cannot bite. **D
 standard, run M2 instances regardless and report them as the `ineffective_by_construction` stratum; no AvoidRefine recovery
 claim is made from them.** Timing (single process): gate baselines about 115 s, one evaluation seed (AutoSpec plus random-operator)
 335-390 s.
+
+### Step 8: rooms100 deferred (project owner decision)
+Rooms100 golds built as one-room-hop waypoint chains over each fixed world's layout (`world_gold`, route chosen by shortest door
+path, the paper's own regions are not gold because they contain sealed rooms) pass Tier 1 on all 7 worlds (13-22 edges). Tier 2
+fails on `random_seed0` with one certification seed: 8 of 16 edges below 0.85, 7 at 0.0. Diagnosis so far: the policy aims correctly
+(heading 3.14 toward the goal) but its speed collapses to about 0.1, so the agent crawls; not a direction effect (open-map left,
+right, up and down edges learn at 0.88-1.0); passing and failing edges sit in the same world, so it is not only the 0-120
+observation scale. Unresolved. Decision: ship the benchmark on the certified rooms9 golds and treat rooms100 as an open follow-up
+(candidate causes: observation scale, budget, seed sensitivity of the PPO recipe). Nothing was changed in the learner.
+The CLI now has `certify` (protocol seeds, one gold per worker, writes `certificates.json`), `--workers`, and `run` uses only
+certified golds unless `--uncertified` is given.
