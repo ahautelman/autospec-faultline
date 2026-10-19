@@ -19,12 +19,11 @@ import multiprocessing
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 
+from faultline.benchmark import workers
 from faultline.benchmark.golds import ROOMS9_LAYOUTS, rooms9_gold, world_gold
 from faultline.benchmark.instances import generate
-from faultline.benchmark.runner import Settings, gold_baselines, run_instance, write_record
+from faultline.benchmark.runner import Settings
 from faultline.faults.gates import Funnel
-from faultline.golden.certify import certify_learning
-from faultline.golden.env import make_env
 from faultline.protocol import load_protocol
 
 
@@ -42,36 +41,6 @@ def build_golds(protocol, worlds: list[str]):
         if gold.certificate.tier1_ok:
             golds.append(gold)
     return golds
-
-
-def _init_worker() -> None:
-    import torch
-
-    torch.set_num_threads(1)
-
-
-def _certify(gold, settings):
-    """Certify one gold with the protocol seeds (runs in a worker)."""
-    p = settings.protocol
-    return certify_learning(
-        gold, lambda: make_env(gold), lambda: settings.edge_learner(0), settings.graph_learner,
-        config=settings.config, cert_seeds=p["seeds"]["certification"],
-        holdout_seeds=p["seeds"]["certification_holdout"], p_gold_min=p["certification"]["p_gold_min"],
-        p_alt_min=p["certification"]["p_alt_min"], confidence=p["certification"]["confidence"],
-        protocol_hash=p.hash,
-    )
-
-
-_GOLD_CACHE: dict[str, dict] = {}
-
-
-def _run_one(instance, settings, seeds, out):
-    """Run one instance in a worker, caching gold baselines per worker process."""
-    if instance.gold.id not in _GOLD_CACHE:
-        _GOLD_CACHE[instance.gold.id] = gold_baselines(settings, instance.gold)
-    record = run_instance(instance, settings, _GOLD_CACHE[instance.gold.id], seeds=seeds, log=print)
-    write_record(record, out)
-    return instance.id
 
 
 def _certified(golds, out: Path, require: bool):
@@ -106,8 +75,8 @@ def main() -> None:
 
     if args.command == "certify":
         results = {}
-        with ProcessPoolExecutor(args.workers, mp_context=context, initializer=_init_worker) as pool:
-            futures = {pool.submit(_certify, g, settings): g.id for g in golds}
+        with ProcessPoolExecutor(args.workers, mp_context=context, initializer=workers.init_worker) as pool:
+            futures = {pool.submit(workers.certify_gold, g, settings): g.id for g in golds}
             for future in as_completed(futures):
                 gold = future.result()
                 c = gold.certificate
@@ -136,10 +105,10 @@ def main() -> None:
     seeds = tuple(args.seeds) if args.seeds else None
     if args.workers <= 1:
         for inst in pending:
-            _run_one(inst, settings, seeds, args.out)
+            workers.run_one(inst, settings, seeds, args.out)
         return
-    with ProcessPoolExecutor(args.workers, mp_context=context, initializer=_init_worker) as pool:
-        for future in as_completed([pool.submit(_run_one, i, settings, seeds, args.out) for i in pending]):
+    with ProcessPoolExecutor(args.workers, mp_context=context, initializer=workers.init_worker) as pool:
+        for future in as_completed([pool.submit(workers.run_one, i, settings, seeds, args.out) for i in pending]):
             print("done", future.result(), flush=True)
 
 
