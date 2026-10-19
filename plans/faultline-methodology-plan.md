@@ -109,3 +109,11 @@ infeasible), deterministic instance generation with a funnel, the per-instance r
 graph baselines, metrics, JSON with git and protocol hash) and a CLI (`funnel`, `run`). T9 passes: the five old cases are valid
 coarsenings of feasible golds and same-family mutations apply. Funnel on rooms9, one instance seed: 57 valid; route pruning has
 no site (no gold with a weak-by-design edge). Not done: rooms100 golds, M5 golds, PPO pilot timings, grid sizing, process pool.
+
+### Step 8 finding: the first rooms9 golds were not learnable
+A PPO pilot on the original `start -> mid -> goal` golds measured gold edges of 0.73-0.85 (and 0.75-0.99 as the horizon varied),
+so gold itself would be refined; Tier 2 had never been run on them. Fix applied to the world, not the threshold: the intended
+graph now has one waypoint per intermediate room on the door path (one-room hops) and the rooms9 horizon is 30.
+Single-seed certification (cert seed 100, hold-out 105) at horizon 30: `default`, `default_trap`, `mixed_star`, `mixed_star_trap`,
+`blocked_two_path` pass all three tiers (weakest edge lower bound 0.881 on `default`); `blocked_two_path_trap` has no feasible
+trap. The full protocol certification (5 + 5 seeds) is still to be run before any evaluation. Margins on `default` are thin.
