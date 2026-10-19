@@ -61,8 +61,8 @@ def oracle(repair: GroundTruthRepair, grid: CellGrid) -> AbstractGraph:
         grid: The shared cell grid.
 
     How:
-        Region families (M1 to M3) take their ceiling region at the locus. Structural
-        families (M4, M5) and the null have no region ceiling, so the oracle is the gold
+        Region families (goal inflation, hazard unlabeled, dead start) take their ceiling region at the locus. Structural
+        families (waypoint contraction, route pruning) and the null have no region ceiling, so the oracle is the gold
         graph, the best any operator could aim for.
 
     Returns:

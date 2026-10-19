@@ -4,6 +4,7 @@
     python -m faultline.benchmark funnel  --out reports/faultline
     python -m faultline.benchmark screen  --out reports/faultline --workers 6
     python -m faultline.benchmark run     --out reports/faultline --workers 6 --seeds 0 1 2 3 4
+    python -m faultline.benchmark analyze --out reports/faultline
 
 ``screen`` runs only the effectiveness and observability gates on every instance and writes
 ``screen_funnel.json``: the checkpoint before any evaluation run. ``certify`` runs Tier 2 and Tier 3 with the protocol's seeds on every gold (one gold per
@@ -70,9 +71,20 @@ def write_screen_funnel(out: Path) -> dict:
     return counts
 
 
+def _warm_golds(pool, instances, settings, out: Path) -> None:
+    """Learn every gold baseline once, in parallel, before the instances need them.
+
+    Without this every worker relearned each gold's baselines; with the shared estimate
+    cache the instances then read them from disk.
+    """
+    golds = {i.gold.id: i.gold for i in instances}
+    for future in as_completed([pool.submit(workers.warm_gold, g, settings, out) for g in golds.values()]):
+        print("gold baselines ready:", future.result(), flush=True)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(prog="faultline.benchmark")
-    parser.add_argument("command", choices=("certify", "funnel", "screen", "run"))
+    parser.add_argument("command", choices=("certify", "funnel", "screen", "run", "analyze"))
     parser.add_argument("--out", type=Path, default=Path("reports/faultline"))
     parser.add_argument("--worlds", nargs="*", default=[])
     parser.add_argument("--instance-seeds", type=int, nargs="+", default=[0, 1, 2, 3, 4])
@@ -81,19 +93,30 @@ def main() -> None:
     parser.add_argument("--learner", default="ppo")
     parser.add_argument("--workers", type=int, default=1)
     parser.add_argument("--uncertified", action="store_true")
-    parser.add_argument("--only", default=None, help="substring of the instance id")
+    parser.add_argument("--only", nargs="+", default=None, help="keep ids containing any of these substrings")
+    parser.add_argument("--cache-dir", default="reports/cache",
+                        help="exact edge-estimate cache shared by all runs; 'none' disables it")
+    parser.add_argument("--no-score-all", action="store_true",
+                        help="RQ2: do not score the operators the loop skipped after committing")
     args = parser.parse_args()
 
     protocol = load_protocol()
     args.out.mkdir(parents=True, exist_ok=True)
-    settings = Settings(protocol, learner=args.learner)
+    if args.command == "analyze":
+        from faultline.benchmark.analyze import analyze
+        analyze(args.out, threshold=protocol["autospec"]["threshold"],
+                resamples=protocol["statistics"]["bootstrap_resamples"])
+        return
+    settings = Settings(protocol, learner=args.learner,
+                        cache_dir=None if args.cache_dir == "none" else args.cache_dir,
+                        score_all_operators=not args.no_score_all)
     golds = build_golds(protocol, args.worlds)
     context = multiprocessing.get_context("spawn")
 
     if args.command == "certify":
         results = {}
         with ProcessPoolExecutor(args.workers, mp_context=context, initializer=workers.init_worker) as pool:
-            chosen = [g for g in golds if not args.only or args.only in g.id]
+            chosen = [g for g in golds if not args.only or any(o in g.id for o in args.only)]
             futures = {pool.submit(workers.certify_gold, g, settings): g.id for g in chosen}
             for future in as_completed(futures):
                 gold = future.result()
@@ -117,12 +140,13 @@ def main() -> None:
         return
 
     if args.only:
-        instances = [i for i in instances if args.only in i.id]
+        instances = [i for i in instances if any(o in i.id for o in args.only)]
     instances = instances[: args.limit]
     if args.command == "screen":
         done = {p.stem for p in (args.out / "screen").glob("*.json")}
         pending = [i for i in instances if i.id.replace("|", "__") not in done]
         with ProcessPoolExecutor(args.workers, mp_context=context, initializer=workers.init_worker) as pool:
+            _warm_golds(pool, pending, settings, args.out)
             for future in as_completed([pool.submit(workers.screen_one, i, settings, args.out) for i in pending]):
                 print("screened", future.result(), flush=True)
         write_screen_funnel(args.out)
@@ -130,10 +154,13 @@ def main() -> None:
     pending = [i for i in instances if not (args.out / (i.id.replace("|", "__") + ".json")).exists()]
     seeds = tuple(args.seeds) if args.seeds else None
     if args.workers <= 1:
+        for gold in {i.gold.id: i.gold for i in pending}.values():
+            workers.warm_gold(gold, settings, args.out)
         for inst in pending:
             workers.run_one(inst, settings, seeds, args.out)
         return
     with ProcessPoolExecutor(args.workers, mp_context=context, initializer=workers.init_worker) as pool:
+        _warm_golds(pool, pending, settings, args.out)
         for future in as_completed([pool.submit(workers.run_one, i, settings, seeds, args.out) for i in pending]):
             print("done", future.result(), flush=True)
 

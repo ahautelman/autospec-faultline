@@ -86,7 +86,7 @@ def test_fixtures_are_certified_feasible():
         assert gold.certificate.tier1_ok, (gold.id, gold.certificate.problems)
 
 
-# ---- M1 -------------------------------------------------------------------------------
+# ---- goal inflation -------------------------------------------------------------------
 
 def test_goal_inflation_adds_an_unreachable_pocket_of_the_requested_mass():
     gold = gold_pocket()
@@ -111,7 +111,7 @@ def test_goal_inflation_needs_an_incoming_edge():
         mutate(FaultKind.GOAL_INFLATION, gold_pocket(), MutationParams(vertex="start"), rng())
 
 
-# ---- M2 -------------------------------------------------------------------------------
+# ---- hazard unlabeled -----------------------------------------------------------------
 
 def test_hazard_unlabeling_labels_only_the_far_part_of_the_trap():
     gold = gold_trap()
@@ -136,7 +136,7 @@ def test_hazard_unlabeling_without_a_trap_is_not_applicable():
         mutate(FaultKind.HAZARD_UNLABELED, gold_pocket(), MutationParams(), rng())
 
 
-# ---- M3 -------------------------------------------------------------------------------
+# ---- dead start -----------------------------------------------------------------------
 
 def test_dead_start_adds_cells_with_no_route_to_the_goal():
     gold = gold_big_start()
@@ -176,7 +176,7 @@ def test_two_pockets_on_opposite_sides_defeat_a_single_half_plane():
     assert single.factors["halfplane_separable"] is True
 
 
-# ---- M4 -------------------------------------------------------------------------------
+# ---- waypoint contraction -------------------------------------------------------------
 
 def test_waypoint_contraction_drops_the_waypoint_nearest_the_target_position():
     gold = gold_chain()
@@ -198,7 +198,7 @@ def test_waypoint_contraction_needs_a_droppable_waypoint():
         mutate(FaultKind.WAYPOINT_CONTRACTION, gold_pocket(), MutationParams(), rng())
 
 
-# ---- M5 -------------------------------------------------------------------------------
+# ---- route pruning --------------------------------------------------------------------
 
 def test_route_pruning_removes_an_edge_that_cuts_every_alternative():
     gold = gold_diamond()

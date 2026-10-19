@@ -1,4 +1,4 @@
-# FaultLine contracts (Phase 0 audit)
+# Appendix: contracts of the existing code (Phase 0 audit)
 
 What the existing code guarantees, read from the source on 2026-10-19 (main at merge `d45b988`).
 Items marked **open** were not verified and block a later step. AntMaze is out of scope, so spec item 6
@@ -8,7 +8,7 @@ to `(x, y)` of the 4-D room observation.
 ## 1. Success criterion (`envs/rooms/env.py`, `RoomsEnv.step`)
 An edge episode succeeds when the agent is within `SUCCESS_RADIUS = 1.0` of the **sampled goal point** and the
 position is safe (inside the spec's safe region and outside the trap). It does not succeed on merely entering the
-target region. Consequence: goal inflation (M1) bites through goal sampling. Goals sampled in a sealed pocket
+target region. Consequence: goal inflation bites through goal sampling. Goals sampled in a sealed pocket
 are unreachable, so the edge fails on that fraction of episodes. One criterion is used for rooms9 and rooms100.
 
 ## 2. Start and goal sampling
@@ -28,7 +28,7 @@ trap stays physical. Whether the faulty baseline still fails is decided by the e
 | Operator | Consumes | Notes |
 |---|---|---|
 | ReachRefine | states inside the target region visited by **successful** episodes; hull ∩ region | follows the paper's prose, not Algorithm 2's pseudocode |
-| AvoidRefine | last `k` states of every episode that **ended unsafe**; region minus their hull | unsafe = final state outside the safe set **or** `final_safe is False` (env trap). So a trap the spec does not label still triggers AvoidRefine, which M2 relies on. |
+| AvoidRefine | last `k` states of every episode that **ended unsafe**; region minus their hull | unsafe = final state outside the safe set **or** `final_safe is False` (env trap). So a trap the spec does not label still triggers AvoidRefine, which hazard-unlabeled faults rely on. |
 | SeqRefine | both of the above, each skipped if it has no data | |
 | AddRefine | `states[len // 2]` of successful episodes; hull ∩ safe | temporal midpoint, so waypoint position matters (`witness_aligned`) |
 | PastRefine | first states of successes vs failures; half-plane fit | needs at least one success and one failure; single half-plane only |
@@ -50,8 +50,7 @@ defaults to off and the benchmark keeps it off (decision D5).
 Available: `intersect`, `difference` (symbolic predicates), `convex_hull`, `half_plane_partition`,
 `region_bounds`, `sample_within`, serialisation; predicates evaluate pointwise. **Not available:** area,
 containment, union area, IoU. These are computed by deterministic grid rasterisation
-(`faultline_metrics._predicate_counts`, currently 121 cells per axis). The protocol fixes 240 cells per axis (0.1 unit)
-for the whole benchmark and the discretisation error bound will be reported.
+(`golden/raster.py`, `CellGrid`) at the protocol's 240 cells per axis (0.1 unit) for the whole benchmark.
 
 ## 7. Room-grid analysis (`envs/rooms/grid.py`)
 `RoomGrid` answers `shortest_path`, `cut_rooms`, `components`, `sealed_rooms`, `viability` (backward, through safe
@@ -60,13 +59,14 @@ implementations on random grids (`tests/test_room_grid.py`, `tests/test_room_gri
 Endpoint convention: sources (for `reachable`) and targets (for `viability`) are always included even when not
 in the safe set; every other room on the route must be safe.
 **Limit (resolved):** the analysis is room-granular and rejects partial doors. A trap *inside* a room
-(the old `overwide_safety` strip) is invisible to it. **Decision:** M2 uses a rasterised cell grid (the protocol's
+(the old `overwide_safety` strip) is invisible to it. **Decision:** hazard-unlabeled faults use a rasterised cell grid (the protocol's
 0.1-unit resolution) for sub-room traps, built in step 3 alongside the gold builder.
 
 ## 8. Scenario catalogue (`scenarios/catalogue.py`)
 Five 9-rooms scenarios (`trap_goal`, `narrow_door`, `long_corridor`, `mixed_start`, `blocked_two_path`) are
-hand-built faulty specs, some with a physical trap the spec does not label (`narrow_door`). **Open:** whether they are
-reproducible by injection into a derived gold spec (test T9). Not yet checked.
+hand-built faulty specs, some with a physical trap the spec does not label (`narrow_door`). Test T9 showed each is a valid
+coarsening of a feasible gold under the new validity gate (passed at commit `6109212`); the old hand-built pipeline
+was then removed.
 
 ## 9. Compute reference
 Recorded rooms100 runs (`reports/rooms100_autospec`: threshold 0.99, budget 100k, 1000 rollouts, 14-core pool):

@@ -28,19 +28,30 @@ def certify_gold(gold, settings):
     )
 
 
-def run_one(instance, settings, seeds, out):
-    """Run one instance, caching gold baselines per worker process."""
+def warm_gold(gold, settings, out):
+    """Learn one gold's baselines (filling the shared estimate cache) and log its RQ2 rows."""
+    gold_baselines(settings, gold, rq2_dir=out / "rq2")
+    return gold.id
+
+
+def _gold_base(instance, settings):
+    """Gold baselines of an instance, memoised per process (disk-cached across processes)."""
     if instance.gold.id not in _GOLD_CACHE:
         _GOLD_CACHE[instance.gold.id] = gold_baselines(settings, instance.gold)
-    record = run_instance(instance, settings, _GOLD_CACHE[instance.gold.id], seeds=seeds, log=print)
+    return _GOLD_CACHE[instance.gold.id]
+
+
+def run_one(instance, settings, seeds, out):
+    """Run one instance and write its record and RQ2 rows."""
+    record = run_instance(instance, settings, _gold_base(instance, settings), seeds=seeds, log=print,
+                          rq2_dir=out / "rq2")
     write_record(record, out)
     return instance.id
 
 
 def screen_one(instance, settings, out):
     """Run only the gates of one instance and write the record under ``out/screen``."""
-    if instance.gold.id not in _GOLD_CACHE:
-        _GOLD_CACHE[instance.gold.id] = gold_baselines(settings, instance.gold)
-    record = run_instance(instance, settings, _GOLD_CACHE[instance.gold.id], gates_only=True, log=print)
+    record = run_instance(instance, settings, _gold_base(instance, settings), gates_only=True, log=print,
+                          rq2_dir=out / "rq2")
     write_record(record, out / "screen")
     return instance.id

@@ -79,9 +79,9 @@ class MutationParams:
         severity: Numeric severity, or ``None`` to use the level's default.
         vertex: Vertex to mutate, or ``None`` for the family's default.
         edge: Edge id to mutate, or ``None`` for the family's default.
-        pockets: Number of pockets (M3); two make the half-plane fit fail.
-        n_dropped: Waypoints dropped (M4).
-        trap_index: Which gold trap to partly unlabel (M2).
+        pockets: Number of pockets (dead start); two make the half-plane fit fail.
+        n_dropped: Waypoints dropped (waypoint contraction).
+        trap_index: Which gold trap to partly unlabel (hazard unlabeled).
     """
 
     level: str = "mid"

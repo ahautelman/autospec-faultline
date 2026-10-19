@@ -78,7 +78,7 @@ def generate(
     out: list[Instance] = []
     for gold in golds:
         for kind in families:
-            # M4 and M5 have no severity level; run them once per seed.
+            # Waypoint contraction and route pruning have no severity level; run them once per seed.
             for level, dropped in _variants(kind, levels):
                 for seed in seeds:
                     ident = instance_id(gold.id, kind, level, seed) + (f"|n{dropped}" if dropped > 1 else "")
@@ -120,7 +120,7 @@ def evaluation_seeds(instance: Instance, base: Sequence[int]) -> tuple[int, ...]
 def _variants(kind: FaultKind, levels: Sequence[str]) -> list[tuple[str, int]]:
     """Return the (severity level, waypoints dropped) combinations a family runs.
 
-    M5 has no severity, so it runs once. M4 runs each position level with one and with two
+    Route pruning has no severity, so it runs once. Waypoint contraction runs each position level with one and with two
     dropped waypoints (``waypoints_dropped`` in the protocol is a separate factor, not a
     severity level).
     """

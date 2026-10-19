@@ -115,8 +115,9 @@ def test_ppo_default_recipe_matches_the_paper_recipe():
     assert DEFAULT_RECIPE["gamma"] == 0.99
     assert DEFAULT_RECIPE["policy_kwargs"]["net_arch"] == [64, 64]
     # Added on top of the paper recipe to keep exploration alive on the deceptive
-    # scenarios; see faultline/learners/ppo.py.
-    assert DEFAULT_RECIPE["ent_coef"] == 0.02
+    # scenarios; see faultline/learners/ppo.py. The rooms9 gold certificates were
+    # made with 0.05, so changing it invalidates them.
+    assert DEFAULT_RECIPE["ent_coef"] == 0.05
 
 
 @pytest.mark.parametrize(

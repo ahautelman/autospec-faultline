@@ -6,7 +6,7 @@ import json
 import subprocess
 import time
 from collections.abc import Callable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
@@ -21,9 +21,11 @@ from faultline.golden.raster import CellGrid
 from faultline.golden.spec import edge_id
 from faultline.graph import AbstractGraph
 from faultline.learners import DiRL, PPOEdgeLearner, TabularLearner
+from faultline.learners.cache import CachedLearner, EstimateStore
 from faultline.metrics.evaluate import evaluate_repair
 from faultline.protocol import Protocol
 from faultline.refinement import AutoSpecConfig, run_autospec
+from faultline.rq2.log import Rq2Log, gold_labels, instance_labels
 
 
 def git_hash() -> str:
@@ -48,6 +50,8 @@ class Settings:
     budget: int | None = None
     n_rollouts: int | None = None
     audit_samples: int = 200
+    cache_dir: str | None = None
+    score_all_operators: bool = True
 
     @property
     def config(self) -> AutoSpecConfig:
@@ -59,12 +63,16 @@ class Settings:
         )
 
     def edge_learner(self, seed: int):
-        """Return a fresh edge learner."""
+        """Return a fresh edge learner, wrapped in the exact estimate cache when one is set."""
         if self.learner == "ppo":
-            return PPOEdgeLearner(device="cpu", seed=seed)
-        if self.learner == "tabular":
-            return TabularLearner()
-        raise ValueError("learner must be 'ppo' or 'tabular'")
+            learner = PPOEdgeLearner(device="cpu", seed=seed)
+        elif self.learner == "tabular":
+            learner = TabularLearner()
+        else:
+            raise ValueError("learner must be 'ppo' or 'tabular'")
+        if self.cache_dir is None:
+            return learner
+        return CachedLearner(learner, EstimateStore(self.cache_dir))
 
     def graph_learner(self):
         """Return a fresh graph learner, or ``None`` for the base method."""
@@ -82,10 +90,21 @@ def baseline_for(settings: Settings, gold_graph: AbstractGraph, env: Any, seed: 
                           budget=cfg.budget, n_rollouts=cfg.n_rollouts, seed=seed)
 
 
-def gold_baselines(settings: Settings, gold) -> dict[int, Baseline]:
-    """Learn gold's baseline on every gate seed (cache the result per gold)."""
+def gold_baselines(settings: Settings, gold, rq2_dir: Path | None = None) -> dict[int, Baseline]:
+    """Learn gold's baseline on every gate seed, logging the RQ2 ``gold`` rows when asked."""
     env = make_env(gold)
-    return {s: baseline_for(settings, gold.graph, env, s) for s in settings.gate_seeds}
+    out = {s: baseline_for(settings, gold.graph, env, s) for s in settings.gate_seeds}
+    if rq2_dir is not None:
+        log = Rq2Log(rq2_dir, _safe_name(gold.id + "|gold"), gold_labels(gold), gold.layout, gold.traps,
+                     settings.config.threshold)
+        log.reset()
+        for seed, baseline in out.items():
+            log.baseline("gold", seed, gold.graph, baseline)
+    return out
+
+
+def _safe_name(identifier: str) -> str:
+    return identifier.replace("|", "__").replace("/", "_")
 
 
 def _graph_dict(graph: AbstractGraph) -> dict:
@@ -117,6 +136,7 @@ def run_instance(
     skip_gates: bool = False,
     gates_only: bool = False,
     log: Callable[[str], None] = lambda _msg: None,
+    rq2_dir: Path | None = None,
 ) -> dict[str, Any]:
     """Screen one instance, run AutoSpec and the baselines on it, and score everything.
 
@@ -129,6 +149,8 @@ def run_instance(
             still recorded.
         gates_only: Stop after the gates (the funnel checkpoint before any evaluation run).
         log: Progress sink.
+        rq2_dir: When given, the RQ2 rows of this instance (gate baselines, AutoSpec first
+            phase and decisions) are written there (:mod:`faultline.rq2.log`).
 
     How:
         Gates run first on the unrefined faulty graph. A rejected instance is recorded with
@@ -155,13 +177,24 @@ def run_instance(
         "faulty_graph": _graph_dict(repair.faulty),
     }
     env = make_env(gold)
+    rq2 = None
+    if rq2_dir is not None:
+        rq2 = Rq2Log(rq2_dir, _safe_name(instance.id), instance_labels(instance), gold.layout, gold.traps,
+                     cfg.threshold)
+        rq2.reset()
+
+    def learn_gate(graph: AbstractGraph, seed: int) -> Baseline:
+        baseline = baseline_for(settings, graph, env, seed)
+        if rq2 is not None:
+            rq2.baseline("gate", seed, graph, baseline)
+        return baseline
+
     started = time.perf_counter()
     if instance.kind is FaultKind.NULL:
         gate = GateResult(Stage.ACCEPTED)      # the null is gold itself: nothing to screen
     else:
         gate = screen_with_learning(
-            repair, gold_base, settings.gate_seeds,
-            lambda graph, seed: baseline_for(settings, graph, env, seed),
+            repair, gold_base, settings.gate_seeds, learn_gate,
             threshold=cfg.threshold, min_gap=gates["effectiveness_min_gap"],
             seed_fraction=gates["effectiveness_seed_fraction"], min_witnesses=gates["observability_min_witnesses"],
         )
@@ -195,8 +228,11 @@ def run_instance(
     record["runs"] = []
     for seed in seeds:
         t0 = time.perf_counter()
-        from dataclasses import replace
-        run = run_autospec(repair.faulty, make_env(gold), settings.edge_learner(seed), replace(cfg, seed=seed), settings.graph_learner())
+        observer = None if rq2 is None else rq2.observer(seed, settings.score_all_operators)
+        run = run_autospec(repair.faulty, make_env(gold), settings.edge_learner(seed), replace(cfg, seed=seed),
+                           settings.graph_learner(), observer=observer)
+        if observer is not None:
+            observer.flush()
         rand = random_operator(repair.faulty, make_env(gold), settings.edge_learner(seed), replace(cfg, seed=seed),
                                instance_rng(f"{instance.id}|order|{seed}"), settings.graph_learner())
         record["runs"].append({
@@ -228,6 +264,6 @@ def _jsonable(value: Any) -> Any:
 def write_record(record: Mapping[str, Any], directory: Path) -> Path:
     """Write a record as ``<id>.json`` (identifier made filename-safe)."""
     directory.mkdir(parents=True, exist_ok=True)
-    path = directory / (record["id"].replace("|", "__").replace("/", "_") + ".json")
+    path = directory / (_safe_name(record["id"]) + ".json")
     path.write_text(json.dumps(record, indent=2, default=repr))
     return path

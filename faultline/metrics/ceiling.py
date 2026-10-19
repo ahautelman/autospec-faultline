@@ -41,11 +41,11 @@ def ceiling_region(
         faulty: Faulty region at the locus.
 
     How:
-        M1 (ReachRefine): hull of every gold cell, intersected with the faulty region.
-        M2 (AvoidRefine): the faulty safe set minus the hull of the unlabelled-trap cells.
-        M3 (PastRefine): the faulty region cut by the half-plane separating gold cells
+        Goal inflation (ReachRefine): hull of every gold cell, intersected with the faulty region.
+        Hazard unlabeled (AvoidRefine): the faulty safe set minus the hull of the unlabelled-trap cells.
+        Dead start (PastRefine): the faulty region cut by the half-plane separating gold cells
         from pocket cells; a pocket that no half-plane separates leaves the region as is.
-        M4 and M5 repair structure, not a region, so they have no region ceiling.
+        Waypoint contraction and route pruning repair structure, not a region, so they have no region ceiling.
 
     Returns:
         The ceiling predicate, or ``None`` when the family has no region ceiling.

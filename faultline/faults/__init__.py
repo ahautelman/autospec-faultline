@@ -1,42 +1,29 @@
-"""FaultLine controlled fault-injection API."""
+"""FaultLine fault injection: parametric mutations of a gold spec, the validity gate and the screening gates.
 
-from faultline.faults.base import FaultCase, FaultType
-from faultline.faults.catalogue import (
-    FaultBenchmarkCase,
-    all_fault_cases,
-    goal_trap_case,
-    missing_alternative_case,
-    missing_waypoint_case,
-    overwide_safety_case,
-    unreachable_start_case,
+``mutations`` turns a certified gold into a faulty spec with a known ground-truth repair
+(``ground_truth``); ``validity`` checks the fault only coarsens gold; ``gates`` screens out
+faults the learner cannot notice (effectiveness) or the operators cannot act on
+(observability).
+"""
+
+from faultline.faults.ground_truth import (
+    EXPECTED_OPERATORS,
+    FaultKind,
+    GroundTruthRepair,
+    Locus,
+    MutationNotApplicable,
+    MutationParams,
 )
-from faultline.faults.injectors import (
-    inject_goal_trap,
-    inject_missing_alternative_path,
-    inject_missing_waypoint,
-    inject_overwide_safety,
-    inject_unreachable_start,
-    no_fault_control,
-)
-from faultline.faults.runner import FaultSummary, format_summary, summarize_fault
+from faultline.faults.mutations import mutate
+from faultline.faults.validity import check_validity
 
 __all__ = [
-    "FaultBenchmarkCase",
-    "FaultCase",
-    "FaultSummary",
-    "FaultType",
-    "all_fault_cases",
-    "format_summary",
-    "goal_trap_case",
-    "inject_goal_trap",
-    "inject_missing_alternative_path",
-    "inject_missing_waypoint",
-    "inject_overwide_safety",
-    "inject_unreachable_start",
-    "missing_alternative_case",
-    "missing_waypoint_case",
-    "no_fault_control",
-    "overwide_safety_case",
-    "summarize_fault",
-    "unreachable_start_case",
+    "EXPECTED_OPERATORS",
+    "FaultKind",
+    "GroundTruthRepair",
+    "Locus",
+    "MutationNotApplicable",
+    "MutationParams",
+    "check_validity",
+    "mutate",
 ]

@@ -37,7 +37,7 @@ OPPOSITE_COSINE = 0.95
 def mutate_goal_inflation(
     gold: GoldSpec, params: MutationParams, rng: np.random.Generator, protocol=None
 ) -> GroundTruthRepair:
-    """M1: add a sealed pocket to a target region (ReachRefine).
+    """Goal inflation: add a sealed pocket to a target region (ReachRefine).
 
     Args:
         gold: The certified gold spec.
@@ -96,7 +96,7 @@ def mutate_goal_inflation(
 def mutate_hazard_unlabeled(
     gold: GoldSpec, params: MutationParams, rng: np.random.Generator, protocol=None
 ) -> GroundTruthRepair:
-    """M2: label only the far part of a physical trap unsafe (AvoidRefine).
+    """Hazard unlabeled: label only the far part of a physical trap unsafe (AvoidRefine).
 
     Args:
         gold: The certified gold spec, with at least one box trap.
@@ -165,7 +165,7 @@ def mutate_hazard_unlabeled(
 def mutate_dead_start(
     gold: GoldSpec, params: MutationParams, rng: np.random.Generator, protocol=None
 ) -> GroundTruthRepair:
-    """M3: add start cells from which the outgoing edge cannot succeed (PastRefine).
+    """Dead start: add start cells from which the outgoing edge cannot succeed (PastRefine).
 
     Args:
         gold: The certified gold spec.
@@ -179,7 +179,7 @@ def mutate_dead_start(
         Pocket cells are not viable for any outgoing edge, lie outside every trap,
         and, for a vertex with in-edges, are reachable from upstream. Reachable but
         not viable needs the in- and out-edges to have different safe sets (a
-        spec-only hazard on the outgoing edge), which is why this differs from M1.
+        spec-only hazard on the outgoing edge), which is why this differs from goal inflation.
         The faulty label is the gold region plus the pocket or pockets.
 
     Returns:
@@ -233,7 +233,7 @@ def mutate_dead_start(
 def mutate_waypoint_contraction(
     gold: GoldSpec, params: MutationParams, rng: np.random.Generator, protocol=None
 ) -> GroundTruthRepair:
-    """M4: drop one or two waypoints and join their neighbours (AddRefine).
+    """Waypoint contraction: drop one or two waypoints and join their neighbours (AddRefine).
 
     Args:
         gold: The certified gold spec.
@@ -291,7 +291,7 @@ def mutate_waypoint_contraction(
 def mutate_route_pruning(
     gold: GoldSpec, params: MutationParams, rng: np.random.Generator, protocol=None
 ) -> GroundTruthRepair:
-    """M5: remove the detour edge that makes a weak-by-design edge avoidable (OrRefine).
+    """Route pruning: remove the detour edge that makes a weak-by-design edge avoidable (OrRefine).
 
     Args:
         gold: The certified gold spec, with at least one weak-by-design edge.

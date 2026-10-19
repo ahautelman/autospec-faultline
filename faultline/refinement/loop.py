@@ -20,7 +20,7 @@ randomness internally.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Protocol
 
 from faultline.graph.abstract_graph import AbstractGraph, Edge
 from faultline.graph.snapshot import snapshot_graph
@@ -46,6 +46,26 @@ _CANDIDATE_BUILDERS = (
     ("past", past_candidate),
     ("or", or_candidate),
 )
+
+
+class LoopObserver(Protocol):
+    """Receives what the loop sees and decides, without influencing it (RQ2 logging).
+
+    Attributes:
+        score_all_operators: When true, after the loop has decided on a weak edge, the
+            operators it did not try are scored too (on the same graph and cache) and
+            reported with ``by_loop=False``. This costs training but changes nothing the
+            loop returns.
+    """
+
+    score_all_operators: bool
+
+    def initial(self, graph: AbstractGraph, estimates: dict[Edge, EdgeEstimate]) -> None:
+        """Called once with the first-phase estimates of every learned edge."""
+
+    def candidate(self, edge: Edge, estimate: EdgeEstimate, operator: str, score: float | None,
+                  committed: bool, by_loop: bool) -> None:
+        """Called per operator on a weak edge; ``score`` is ``None`` when the operator refused."""
 
 
 @dataclass(frozen=True)
@@ -298,6 +318,7 @@ def run_autospec(
     learner: Any,
     config: AutoSpecConfig | None = None,
     graph_learner: Any | None = None,
+    observer: LoopObserver | None = None,
 ) -> AutoSpecRun:
     """Run the Algorithm 1 refinement loop once.
 
@@ -312,6 +333,8 @@ def run_autospec(
             learn. ``None`` trains every edge. Edges it leaves unlearned have no
             estimate (``None`` in the initial record, ``0.0`` in the final one) and
             are skipped by the refinement scan, as in Algorithm 1.
+        observer: Optional :class:`LoopObserver` that logs the first-phase estimates and
+            every operator score (RQ2). It never changes the run.
 
     How:
         Trains every edge, then scans the edges in topological order. A weak edge
@@ -349,6 +372,10 @@ def run_autospec(
         )
         for edge in working.edges
     )
+    if observer is not None:
+        observer.initial(working, {
+            edge: cache[_edge_key(edge)].estimate for edge in working.edges if _edge_key(edge) in cache
+        })
     steps = []
     for template in _ordered_edges(working):
         edge = _locate(
@@ -379,6 +406,7 @@ def run_autospec(
             cache,
             trainer,
             align=graph_learner is None,
+            observer=observer,
         )
         steps.append(step)
 
@@ -427,6 +455,7 @@ def _refine_edge(
     cache: dict,
     trainer: _EdgeTrainer,
     align: bool = True,
+    observer: LoopObserver | None = None,
 ) -> tuple[AbstractGraph, dict, RefinementStep]:
     """Try the operators in order and commit the first that clears the threshold.
 
@@ -438,6 +467,7 @@ def _refine_edge(
         trainer: The trainer that scores each candidate.
         align: Whether to train every edge the committed graph adds. A graph
             learner passes ``False``, since it relearns the refined graph itself.
+        observer: Optional logger of every operator's score.
 
     How:
         Builds candidates in the paper's fixed order. An operator that refuses for
@@ -452,14 +482,20 @@ def _refine_edge(
     """
     before = estimate.success_probability
     tried = []
-    for name, build in _CANDIDATE_BUILDERS:
+    for index, (name, build) in enumerate(_CANDIDATE_BUILDERS):
         tried.append(name)
         try:
             candidate = build(graph, edge, estimate, trainer.config.avoid_tail_length)
         except CannotRefineError:
+            if observer is not None:
+                observer.candidate(edge, estimate, name, None, committed=False, by_loop=True)
             continue
         score, candidate_cache = trainer.route_score(candidate, cache)
-        if score > trainer.config.threshold:
+        committed = score > trainer.config.threshold
+        if observer is not None:
+            observer.candidate(edge, estimate, name, score, committed=committed, by_loop=True)
+        if committed:
+            _score_remaining(graph, edge, estimate, cache, trainer, observer, _CANDIDATE_BUILDERS[index + 1:])
             trace = build_trace(
                 snapshot_graph(graph),
                 snapshot_graph(candidate.graph),
@@ -473,6 +509,34 @@ def _refine_edge(
             return candidate.graph, candidate_cache, step
     step = RefinementStep(edge.source.name, edge.target.name, tuple(tried), None, before, before)
     return graph, cache, step
+
+
+def _score_remaining(
+    graph: AbstractGraph,
+    edge: Edge,
+    estimate: EdgeEstimate,
+    cache: dict,
+    trainer: _EdgeTrainer,
+    observer: LoopObserver | None,
+    builders: tuple,
+) -> None:
+    """Score the operators the loop skipped after committing, for the observer only.
+
+    How:
+        Builds and scores each remaining candidate against the pre-commit graph and
+        cache, exactly as the loop would have, and discards the trainings. Nothing the
+        loop returns depends on this.
+    """
+    if observer is None or not observer.score_all_operators:
+        return
+    for name, build in builders:
+        try:
+            candidate = build(graph, edge, estimate, trainer.config.avoid_tail_length)
+        except CannotRefineError:
+            observer.candidate(edge, estimate, name, None, committed=False, by_loop=False)
+            continue
+        score, _ = trainer.route_score(candidate, cache)
+        observer.candidate(edge, estimate, name, score, committed=False, by_loop=False)
 
 
 def _ordered_edges(graph: AbstractGraph) -> tuple[Edge, ...]:

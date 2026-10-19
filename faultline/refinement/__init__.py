@@ -17,6 +17,7 @@ from faultline.refinement.loop import (
     AutoSpecConfig,
     AutoSpecRun,
     EdgeSuccess,
+    LoopObserver,
     RefinementStep,
     run_autospec,
 )
@@ -36,6 +37,7 @@ __all__ = [
     "AutoSpecRun",
     "Candidate",
     "EdgeSuccess",
+    "LoopObserver",
     "RefinementStep",
     "add_candidate",
     "add_refine",
