@@ -20,7 +20,7 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 
 from faultline.benchmark import workers
-from faultline.benchmark.golds import ROOMS9_LAYOUTS, rooms9_gold, world_gold
+from faultline.benchmark.golds import EXCLUDED_ROOMS9, ROOMS9_LAYOUTS, rooms9_gold, world_gold
 from faultline.benchmark.instances import generate
 from faultline.benchmark.runner import Settings
 from faultline.faults.gates import Funnel
@@ -32,8 +32,10 @@ def build_golds(protocol, worlds: list[str]):
     res = protocol["metrics"]["grid_resolution"]
     golds = []
     for name in ROOMS9_LAYOUTS:
-        for trap in (False, True):
-            gold = rooms9_gold(name, resolution=res, protocol_hash=protocol.hash, trap=trap)
+        if name in EXCLUDED_ROOMS9:
+            continue
+        for trap, shortcut in ((False, False), (True, False), (False, True)):
+            gold = rooms9_gold(name, resolution=res, protocol_hash=protocol.hash, trap=trap, shortcut=shortcut)
             if gold is not None and gold.certificate.tier1_ok:
                 golds.append(gold)
     for world in worlds:

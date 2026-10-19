@@ -79,11 +79,11 @@ def generate(
     for gold in golds:
         for kind in families:
             # M4 and M5 have no severity level; run them once per seed.
-            for level in (levels if kind not in (FaultKind.ROUTE_PRUNING,) else ("mid",)):
+            for level, dropped in _variants(kind, levels):
                 for seed in seeds:
-                    ident = instance_id(gold.id, kind, level, seed)
+                    ident = instance_id(gold.id, kind, level, seed) + (f"|n{dropped}" if dropped > 1 else "")
                     try:
-                        repair = mutate(kind, gold, MutationParams(level=level), instance_rng(ident), protocol)
+                        repair = mutate(kind, gold, MutationParams(level=level, n_dropped=dropped), instance_rng(ident), protocol)
                     except MutationNotApplicable as exc:
                         funnel.record(kind, Stage.NOT_APPLICABLE, str(exc), ident)
                         continue
@@ -100,6 +100,20 @@ def generate(
         funnel.record(FaultKind.NULL, Stage.VALID)
         out.append(Instance(ident, gold, FaultKind.NULL, "fixed", seed, mutate(FaultKind.NULL, gold, MutationParams(), instance_rng(ident))))
     return out
+
+
+def _variants(kind: FaultKind, levels: Sequence[str]) -> list[tuple[str, int]]:
+    """Return the (severity level, waypoints dropped) combinations a family runs.
+
+    M5 has no severity, so it runs once. M4 runs each position level with one and with two
+    dropped waypoints (``waypoints_dropped`` in the protocol is a separate factor, not a
+    severity level).
+    """
+    if kind is FaultKind.ROUTE_PRUNING:
+        return [("mid", 1)]
+    if kind is FaultKind.WAYPOINT_CONTRACTION:
+        return [(level, n) for level in levels for n in (1, 2)]
+    return [(level, 1) for level in levels]
 
 
 def _why(report) -> str:

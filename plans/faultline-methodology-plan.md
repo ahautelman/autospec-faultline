@@ -146,3 +146,10 @@ Certified: `mixed_star` (weakest edge lower bound 0.997), `mixed_star_trap` (0.9
 seeds 107 and 109). The single-seed pass at 0.88 earlier was a lucky seed. Fix applied to the world, not the threshold: on
 `default` only, the start and goal boxes shrink from 0.75 to 0.5 of the room side (`ROOMS9_END_SIDE`). This is a design choice
 made after seeing certification results; it is reported here and the two golds are recertified under the unchanged protocol.
+
+### Step 8: `default` excluded; route pruning gets a site; M4 two-waypoint variant
+Recertification of `default` and `default_trap` with 0.5-side end boxes under the full protocol also failed (`w3->goal` 0.744;
+`w1->w2` 0.670 and `w3->goal` 0.825 plus a hold-out refinement). The layout is excluded (`EXCLUDED_ROOMS9`), not tuned further.
+Route pruning had no site: `add_shortcut` adds a weak-by-design edge that skips one waypoint across a wall (the chain through
+the skipped waypoint is its reliable alternative), giving `rooms9_<layout>_shortcut` golds; M5 applies and passes the validity gate
+on both. M4 now also runs a two-waypoint-drop variant (instance id suffix `|n2`) because dropping one waypoint was ineffective.

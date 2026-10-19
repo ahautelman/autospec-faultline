@@ -65,3 +65,19 @@ def test_hazard_unlabeled_runs_despite_the_gate_and_is_stratified(tmp_path):
     record = run_instance(inst, settings, gold_baselines(settings, gold), seeds=(0,))
     assert record["stratum"] == "ineffective_by_construction"
     assert len(record["runs"]) == 1
+
+
+def test_variants_by_family():
+    from faultline.benchmark.instances import LEVELS, _variants
+    assert _variants(FaultKind.ROUTE_PRUNING, LEVELS) == [("mid", 1)]
+    assert len(_variants(FaultKind.WAYPOINT_CONTRACTION, LEVELS)) == 6
+    assert _variants(FaultKind.GOAL_INFLATION, LEVELS) == [(l, 1) for l in LEVELS]
+
+
+def test_shortcut_gold_makes_route_pruning_applicable():
+    from faultline.benchmark.golds import rooms9_gold
+    from faultline.faults.validity import check_validity
+    gold = rooms9_gold("mixed_star", resolution=48, shortcut=True)
+    assert gold.certificate.tier1_ok and gold.weak_edges
+    repair = mutate(FaultKind.ROUTE_PRUNING, gold, MutationParams(), instance_rng("m5"))
+    assert check_validity(repair, gold, np.random.default_rng(0), 100).ok

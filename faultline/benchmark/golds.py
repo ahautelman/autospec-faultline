@@ -120,6 +120,9 @@ def route_chain(
 # on `default`: w3->goal lower bound 0.69-0.76 over 5 seeds). A design choice made after seeing
 # certification results, reported in the plan.
 ROOMS9_END_SIDE = {"default": 0.5}
+# `default` failed certification even with smaller boxes (w3->goal 0.74, 0.83 over 5 seeds) and is
+# excluded from the benchmark rather than tuned further.
+EXCLUDED_ROOMS9 = ("default",)
 
 
 def rooms9_chain(layout: RoomsLayout | None = None, end_side: float = START_GOAL_SIDE) -> AbstractGraph:
@@ -174,7 +177,37 @@ def trap_candidates(layout: RoomsLayout, graph: AbstractGraph, resolution: int =
     return found
 
 
-def rooms9_gold(layout_name: str, *, resolution: int, protocol_hash: str = "", trap: bool = False) -> GoldSpec | None:
+def add_shortcut(graph: AbstractGraph, layout: RoomsLayout) -> str | None:
+    """Add a weak-by-design shortcut skipping one waypoint, across a wall, and return its edge id.
+
+    How:
+        Looks for waypoints ``v_i`` and ``v_{i+2}`` whose centres are joined by a straight
+        segment that crosses a wall (so PPO cannot learn the direct edge, which the loop
+        will try to refine) and adds the edge ``v_i -> v_{i+2}``. The chain through
+        ``v_{i+1}`` is its reliable alternative route.
+
+    Returns:
+        The shortcut's edge id, or ``None`` when every skip is a clear straight line.
+    """
+    import numpy as np
+
+    from faultline.geometry import region_bounds
+    from faultline.spectrl.predicates import PLANAR_DIMS
+
+    vertices = graph.vertices
+    for i in range(1, len(vertices) - 2):
+        centres = []
+        for v in (vertices[i], vertices[i + 2]):
+            lo, hi = region_bounds(v.region, PLANAR_DIMS)
+            centres.append((lo + hi) / 2.0)
+        if layout.segment_is_blocked(np.asarray(centres[0]), np.asarray(centres[1])):
+            graph.add_edge(vertices[i], vertices[i + 2])
+            return f"{vertices[i].name}->{vertices[i + 2].name}"
+    return None
+
+
+def rooms9_gold(layout_name: str, *, resolution: int, protocol_hash: str = "", trap: bool = False,
+                shortcut: bool = False) -> GoldSpec | None:
     """Build the gold of one rooms9 layout, optionally with a physical trap.
 
     Args:
@@ -182,6 +215,7 @@ def rooms9_gold(layout_name: str, *, resolution: int, protocol_hash: str = "", t
         resolution: Cells per axis.
         protocol_hash: Protocol hash stamped on the certificate.
         trap: Whether to add a trap on the route.
+        shortcut: Whether to add a weak-by-design shortcut edge (no trap; needs a wall-crossing skip).
 
     How:
         With ``trap`` the first candidate strip for which Tier 1 passes is used.
@@ -192,10 +226,16 @@ def rooms9_gold(layout_name: str, *, resolution: int, protocol_hash: str = "", t
     layout = RoomsLayout(doors=ROOMS9_LAYOUTS[layout_name]())
     end_side = ROOMS9_END_SIDE.get(layout_name, START_GOAL_SIDE)
     graph = rooms9_chain(layout, end_side)
-    name = f"rooms9_{layout_name}" + ("_trap" if trap else "")
+    name = f"rooms9_{layout_name}" + ("_trap" if trap else "") + ("_shortcut" if shortcut else "")
+    weak: tuple[str, ...] = ()
+    if shortcut:
+        edge = add_shortcut(graph, layout)
+        if edge is None:
+            return None
+        weak = (edge,)
     if not trap:
         return build_gold(name, layout, graph, resolution=resolution, max_steps=ROOMS9_MAX_STEPS,
-                          protocol_hash=protocol_hash)
+                          protocol_hash=protocol_hash, weak_edges=weak)
     for strip in trap_candidates(layout, graph):
         gold = build_gold(name, layout, rooms9_chain(layout, end_side), (strip,), resolution=resolution,
                           max_steps=ROOMS9_MAX_STEPS, protocol_hash=protocol_hash)
