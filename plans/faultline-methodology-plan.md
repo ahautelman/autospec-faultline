@@ -74,3 +74,11 @@ grid and L(phi*) in L(phi_f) on sampled gold-satisfying trajectories; it raises 
 Notes: M3 at an inner vertex needs a spec-only mouth hazard on the outgoing edge (reachable-but-not-viable cannot arise from
 physical traps with symmetric doors); M5 has no numeric severity (measured by the effectiveness gate later); the language
 check is sampling-based evidence, not a proof. The old `faults/{catalogue,injectors}.py` stay until step 8 (T9).
+
+## Step 5 status (gates and funnel)
+Built `faults/gates.py`: `learn_baseline` (first phase of the loop, no refinement), `check_effectiveness` (faulty best-path
+success trails gold by `effectiveness_min_gap` and some edge is below p, on `effectiveness_seed_fraction` of seeds),
+`check_observability` (locus-edge rollouts hold `observability_min_witnesses` of the samples the operator consumes; route pruning
+and the null need none), `screen` / `screen_with_learning`, and `Funnel` (per-family counts and reasons). Unobservable mutants
+are their own stratum, not dropped. The gates are tested on scripted baselines only; their thresholds meet real PPO output in
+step 8, where the funnel is the checkpoint before any evaluation run.
