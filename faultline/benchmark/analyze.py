@@ -173,10 +173,12 @@ def analyze(out: Path, threshold: float = 0.8, resamples: int = 10_000) -> dict[
     lines += _confusion_section(rows, families)
     nulls = [r["false_repair"] for r in rows if r["kind"] == "null" and r["method"] == "autospec"]
     lines += ["## Nulls (gold itself)", "", f"False-repair rate (AutoSpec): {_rate(nulls)}", ""]
-    seconds = [r["seconds"] for r in rows if r["method"] == "autospec" and r.get("seconds")]
+    seconds = [r["seconds"] for r in rows if r["method"] == "autospec" and r.get("seconds") is not None]
     if seconds:
-        lines += ["## Runtime", "", f"Seconds per evaluation seed (AutoSpec + random operator): median "
-                  f"{np.median(seconds):.0f}, max {np.max(seconds):.0f}, n = {len(seconds)}.", ""]
+        lines += ["## Runtime", "", f"Seconds per evaluation seed (AutoSpec + random operator, wall clock with the estimate "
+                  f"cache, so seeds whose trainings were already cached cost almost nothing): median "
+                  f"{np.median(seconds):.1f}, mean {np.mean(seconds):.1f}, max {np.max(seconds):.0f}, "
+                  f"n = {len(seconds)}.", ""]
     (target / "summary.md").write_text("\n".join(lines))
     _figures(rows, families, rng, resamples, target)
     print("\n".join(lines))
@@ -281,7 +283,7 @@ def _figures(rows, families, rng, resamples, target: Path) -> None:
         ax.set_axisbelow(True)
         for side in ("top", "right"):
             ax.spines[side].set_visible(False)
-        ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.25), ncol=5, frameon=False, fontsize=8)
+        ax.legend(loc="lower center", bbox_to_anchor=(0.5, 1.02), ncol=5, frameon=False, fontsize=8)
         fig.tight_layout()
         for ext in ("pdf", "png"):
             fig.savefig(target / f"f1_by_family.{ext}", dpi=300, bbox_inches="tight")

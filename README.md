@@ -79,7 +79,7 @@ What each command produces:
 One PPO edge takes about 15 s on one core. Estimates are cached on disk (`reports/cache/`, shared by all workers and
 runs) by an exact fingerprint of everything that determines them, so a cache hit is bit-identical to retraining
 ([method 3.6](docs/paper/03-method.md#36-exact-edge-estimate-cache)). Measured on one instance (gold baselines, gates
-and one evaluation seed): see [results](docs/paper/04-results.md#runtime). Bump `CACHE_VERSION` in
+and one evaluation seed): see [results](docs/paper/04-results.md#42-runtime). Bump `CACHE_VERSION` in
 [`faultline/learners/cache.py`](faultline/learners/cache.py) whenever the environment, reward or learner code
 changes; delete `reports/cache/` to start afresh.
 

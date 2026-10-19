@@ -125,7 +125,10 @@ class SpecTopology:
 
 
 # The paper's 8-edge DAG (A.3.1): Start branches through M1/M2, merges at M3,
-# then branches through M4/M5 and merges at Goal.
+# then branches through M4/M5 and merges at Goal. As SpectRL:
+#   achieve Start ; (achieve M1 or achieve M2) ; achieve M3 ; (achieve M4 or achieve M5) ; achieve Goal
+# Reach and sequence only: no `ensuring` clause, every edge's safe set is the universe.
+# M1-M5 are the paper's region names, unrelated to the FaultLine fault families.
 PAPER_TOPOLOGY = SpecTopology(
     vertices=PAPER_REGION_ORDER,
     edges=(

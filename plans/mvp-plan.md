@@ -126,3 +126,12 @@ Total: about 5-6 working days plus background compute.
 ## Out of scope
 RQ3, AntMaze, rooms100 certification (documented as future work with the review's suspects), threshold sweep,
 XGBoost training, full-protocol evaluation grid (5 instance seeds x 5 eval seeds).
+
+## Status (2026-10-19, end of session)
+Done: steps 0-7. Cache verified exact (tests) and timed (648 s -> 282 s cold, 14 s warm per instance). Screen on 5
+certified golds (instance seed 0): goal inflation 4/6 and dead start 4/6 accepted, waypoint contraction 0/30 and route
+pruning 0/1 effective, hazard unlabeled by construction. Evaluation (8 fault instances + 13 nulls, seeds 0-2): AutoSpec
+F1 0.98 / 1.00, expected operator in 24/24 runs, 0/39 false repairs; random operator ties because exactly one operator
+clears p on every decision. Results in docs/paper/04-results.md.
+Next: make structural faults bite (golds with longer edges, certified under the same protocol), more instance seeds,
+RQ2 classifier on rq2/dataset.csv.

@@ -1,0 +1,22 @@
+{
+  "null": {
+    "accepted": 13
+  },
+  "waypoint_contraction": {
+    "ineffective": 30
+  },
+  "route_pruning": {
+    "ineffective": 1
+  },
+  "hazard_unlabeled": {
+    "ineffective_by_construction": 6
+  },
+  "dead_start": {
+    "accepted": 4,
+    "ineffective": 2
+  },
+  "goal_inflation": {
+    "accepted": 4,
+    "ineffective": 2
+  }
+}
