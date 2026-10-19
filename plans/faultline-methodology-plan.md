@@ -46,3 +46,13 @@ The env is identical for gold and faulty. Training sees the real violation, so t
 Steps 1-2 first (no learner needed). Checkpoint after step 3: do the gold specs certify at p = 0.8?
 If a world fails Tier 2 or 3, fix the world, never the threshold. Checkpoint after step 5: funnel counts per family,
 before any evaluation run. Report every rejection.
+
+## Step 3 status (gold builder and certifier)
+Built: `faultline/golden/{raster,spec,builder,certify}.py`, `faultline/stats.py` (exact Clopper-Pearson, no SciPy),
+`certification_holdout` seeds and `[gold]` section in the protocol. Tier 1 is exact on a 0.1-unit cell grid and includes a
+horizon lower bound. Tiers 2 and 3 run DiRL on cert seeds and Algorithm 1 on hold-out seeds.
+
+Pilot on today's five hand-built correct graphs (PPO + DiRL, 1 cert seed, 1 hold-out seed, p_gold_min 0.85, p = 0.8):
+`goal_trap`, `overwide_safety`, `unreachable_start`, `missing_waypoint` certify on all three tiers (38-88 s each).
+`missing_alternative` fails Tier 1: gold edge `a->goal` needs at least 7 steps and the horizon is 6. It is dead by design,
+and AutoSpec refines it on gold (Tier 3 fails). **Open design issue for M5**, see the discussion with the project owner.

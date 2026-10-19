@@ -13,11 +13,15 @@ method = "dirl"            # graph learner
 
 [seeds]
 certification = [100, 101, 102, 103, 104]
+certification_holdout = [105, 106, 107, 108, 109]   # Tier 3 fixpoint check
 evaluation = [0, 1, 2, 3, 4]
 
 [certification]
 p_gold_min = 0.85          # one-sided 95% Clopper-Pearson lower bound, per edge and seed
 confidence = 0.95
+
+[gold]
+max_shrink_fraction = 0.5   # an intended region losing more than this fails Tier 1
 
 [gates]
 effectiveness_seed_fraction = 0.8
