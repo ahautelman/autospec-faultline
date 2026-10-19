@@ -222,9 +222,12 @@ class PPOEdgeLearner:
             Sets the subgoal, builds the fast greedy-action function once (so the
             per-step training-mode switch is paid a single time, not per rollout
             step), then runs each episode from a freshly seeded reset with
-            deterministic actions. The safe flag tracks whether every visited state
-            stayed inside the safe region; the final-safe flag records whether the
-            episode ended there, which is the AvoidRefine witness.
+            deterministic actions. Evaluation seeds are allocated in disjoint
+            10,000-seed blocks per experiment seed, so different experiment seeds
+            do not reuse almost the same rollout initialisations. The safe flag tracks
+            whether every visited state stayed inside the safe region; the final-safe
+            flag records whether the episode ended there, which is the AvoidRefine
+            witness.
 
         Returns:
             An :class:`EdgeEstimate` with the success probability and rollouts.
@@ -238,7 +241,8 @@ class PPOEdgeLearner:
         action = greedy_action_fn(policy)
         rollouts = []
         for episode in range(n_rollouts):
-            observation, _info = env.reset(seed=seed + episode)
+            episode_seed = int(seed) * 10_000 + episode
+            observation, _info = env.reset(seed=episode_seed)
             rollouts.append(run_episode(env, edge, action, observation))
         success = sum(1 for rollout in rollouts if rollout.success) / n_rollouts
         return EdgeEstimate(success, tuple(rollouts))
@@ -315,6 +319,10 @@ def run_episode(
         )
         safe = safe and step_safe
         reached = bool(info["is_success"])
-        if terminated or truncated:
+        # A reach-avoid rollout ends at the first safety violation. Hidden-hazard
+        # environments keep the training episode alive while the faulty spec
+        # permits the hazard, but evaluation must stop at the unsafe state so
+        # AvoidRefine's rollout tail stays local to it.
+        if terminated or truncated or not step_safe:
             break
     return Rollout(tuple(states), reached=reached, safe=safe, final_safe=step_safe)

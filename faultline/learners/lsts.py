@@ -92,7 +92,9 @@ class LSTS:
 
     max_interactions:
         Maximum total number of student interactions across all tasks.
-        If None, the budget passed to ``learn_graph`` is used.
+        If None, ``budget`` is treated as a per-usable-edge allowance, so the
+        total budget becomes ``budget * number_of_usable_edges``. This makes
+        LSTS comparable to DiRL, whose edge policies each receive ``budget``.
     """
 
     def __init__(
@@ -159,8 +161,8 @@ class LSTS:
                 estimate_reach(...)
 
         budget:
-            Default total interaction budget when ``max_interactions`` was
-            not supplied to the constructor.
+            Per-edge interaction allowance when ``max_interactions`` is None.
+            The total LSTS budget is then ``budget * usable_edge_count``.
 
         n_rollouts:
             Number of evaluation rollouts after each training chunk.
@@ -188,11 +190,6 @@ class LSTS:
 
         rng = np.random.default_rng(seed)
 
-        if self.max_interactions is not None:
-            total_budget = self.max_interactions
-        else:
-            total_budget = int(budget)
-
         # Only keep edges that can eventually contribute to a path to the
         # target. This avoids spending training effort on dead-end tasks.
         usable_edges = {
@@ -200,6 +197,11 @@ class LSTS:
             for edge in graph.edges
             if self._can_reach_target(graph, edge.target)
         }
+
+        if self.max_interactions is not None:
+            total_budget = int(self.max_interactions)
+        else:
+            total_budget = int(budget) * max(1, len(usable_edges))
 
         task_states = {
             edge: _TaskState(edge=edge)
@@ -237,7 +239,8 @@ class LSTS:
             if chunk <= 0:
                 break
 
-            training_seed = seed + teacher_step
+            # Keep different experiment seeds in disjoint training-seed blocks.
+            training_seed = int(seed) * 1_000 + teacher_step
 
             # First selection creates a new policy.
             if task.policy is None:

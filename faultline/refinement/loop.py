@@ -58,6 +58,9 @@ class AutoSpecConfig:
         budget: Training budget per edge, in environment steps.
         n_rollouts: Episodes per edge success estimate (paper section 6.2).
         avoid_tail_length: Trailing states AvoidRefine blocks (paper section 6.2).
+        reuse_candidate_cache: When a graph learner is used, keep the policies
+            trained while scoring an accepted candidate instead of replacing the
+            whole cache with a fresh graph-learner run. Off by default.
         seed: Base RNG seed threaded into every training call and estimate, so a
             run is reproducible even when a learner trains stochastically.
 
@@ -72,6 +75,7 @@ class AutoSpecConfig:
     budget: int = DEFAULT_BUDGET
     n_rollouts: int = DEFAULT_ROLLOUTS
     avoid_tail_length: int = AVOID_TAIL_LENGTH
+    reuse_candidate_cache: bool = False
     seed: int = 0
 
 
@@ -381,7 +385,18 @@ def run_autospec(
         # The graph learner decides which edges of the refined graph to learn,
         # so rerun it instead of training every new edge.
         if step.operator is not None and graph_learner is not None:
-            cache = trainer.from_graph_learner(working, graph_learner)
+            learned_cache = trainer.from_graph_learner(working, graph_learner)
+            if active_config.reuse_candidate_cache:
+                # Keep the policies trained while scoring the accepted candidate:
+                # they are the evidence the commit decision was based on. Only
+                # edges with no existing policy take the freshly learned one.
+                cache = {
+                    key: cache[key] if key in cache else learned_cache[key]
+                    for key in (_edge_key(e) for e in working.edges)
+                    if key in cache or key in learned_cache
+                }
+            else:
+                cache = learned_cache
 
     probabilities = {
         edge: (

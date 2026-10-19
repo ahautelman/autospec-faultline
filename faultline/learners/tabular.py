@@ -109,8 +109,10 @@ class TabularLearner:
 
         How:
             Sets the subgoal, then runs each episode from a freshly seeded
-            reset. The planner routes to the sampled goal and follows the route.
-            The estimate is the fraction of successful episodes.
+            reset. Evaluation seeds are allocated in disjoint 10,000-seed blocks
+            per experiment seed, so different experiment seeds do not reuse almost
+            the same rollout initialisations. The planner routes to the sampled goal
+            and follows the route. The estimate is the fraction of successful episodes.
 
         Returns:
             An :class:`EdgeEstimate` with the success probability and rollouts.
@@ -123,7 +125,8 @@ class TabularLearner:
         rollouts = []
         for episode in range(n_rollouts):
             env.set_abstract_states(edge.source.region, edge.target.region, edge.safe)
-            observation, _info = env.reset(seed=seed + episode)
+            episode_seed = int(seed) * 10_000 + episode
+            observation, _info = env.reset(seed=episode_seed)
             rollouts.append(self._rollout(env, edge, policy, observation))
         success = sum(1 for rollout in rollouts if rollout.success) / n_rollouts
         return EdgeEstimate(success, tuple(rollouts))
