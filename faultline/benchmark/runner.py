@@ -170,7 +170,14 @@ def run_instance(
         "seconds": time.perf_counter() - started,
     }
     log(f"{instance.id}: gate {gate.stage.value}")
-    if gate.stage in (Stage.INEFFECTIVE,) and not skip_gates:
+    # Hazard-unlabeled cannot bite under an absorbing trap that is identical for gold and
+    # faulty (PPO is penalised by the physical trap either way), so the effectiveness gate
+    # is expected to reject it. Those instances still run and form their own stratum.
+    by_construction = instance.kind is FaultKind.HAZARD_UNLABELED
+    record["stratum"] = (
+        "ineffective_by_construction" if by_construction else gate.stage.value
+    )
+    if gate.stage is Stage.INEFFECTIVE and not (skip_gates or by_construction):
         return record
 
     seeds = tuple(seeds if seeds is not None else protocol["seeds"]["evaluation"])

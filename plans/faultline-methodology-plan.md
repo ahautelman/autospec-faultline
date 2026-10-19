@@ -117,3 +117,14 @@ graph now has one waypoint per intermediate room on the door path (one-room hops
 Single-seed certification (cert seed 100, hold-out 105) at horizon 30: `default`, `default_trap`, `mixed_star`, `mixed_star_trap`,
 `blocked_two_path` pass all three tiers (weakest edge lower bound 0.881 on `default`); `blocked_two_path_trap` has no feasible
 trap. The full protocol certification (5 + 5 seeds) is still to be run before any evaluation. Margins on `default` are thin.
+
+### Step 8 pilot on certified golds (PPO + DiRL, evaluation seed 0, gate seeds 0-2)
+`rooms9_mixed_star`, severity mid, instance seed 0. M1 goal inflation: accepted (gaps 0.23-0.26, 742+ witnesses); AutoSpec commits
+`seq` on `w3->goal`, removal 1.0, retention 0.96, F1 0.98, attainment 1.0. M3 dead start: accepted; AutoSpec commits `past` on
+`start->w1`, F1 1.0. The random-operator baseline recovers both too (only one operator clears the threshold in these cases), so
+operator choice is not what separates them here. M4 waypoint contraction: ineffective (gap 0.0, one-room-hop golds still learn
+after contraction). M2 hazard unlabeled: ineffective (gap 0.0 on all seeds): with an absorbing trap identical for gold and
+faulty, PPO is penalised by the physical trap either way, so M2 cannot bite. **Decision (project owner): keep the absorbing
+standard, run M2 instances regardless and report them as the `ineffective_by_construction` stratum; no AvoidRefine recovery
+claim is made from them.** Timing (single process): gate baselines about 115 s, one evaluation seed (AutoSpec plus random-operator)
+335-390 s.

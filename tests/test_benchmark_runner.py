@@ -52,3 +52,16 @@ def test_run_instance_record_with_tabular_learner(gold, tmp_path):
     assert len(record["runs"]) == 1 and "autospec_eval" in record["runs"][0]
     path = write_record(record, tmp_path)
     assert json.loads(path.read_text())["id"] == inst.id
+
+
+def test_hazard_unlabeled_runs_despite_the_gate_and_is_stratified(tmp_path):
+    protocol = load_protocol()
+    trap = Box((3, 2), (6, 6))
+    gold = build_gold("trap", RoomsLayout(doors={}), chain_graph(Box((1, 3), (2, 5)), (), Box((7, 3), (8, 5))), (trap,),
+                      resolution=24, max_steps=20)
+    settings = Settings(protocol, learner="tabular", method="base", gate_seeds=(0,), budget=2000, n_rollouts=50, audit_samples=40)
+    repair = mutate(FaultKind.HAZARD_UNLABELED, gold, MutationParams(), instance_rng("m2"))
+    inst = Instance("trap|hazard_unlabeled|mid|0", gold, FaultKind.HAZARD_UNLABELED, "mid", 0, repair)
+    record = run_instance(inst, settings, gold_baselines(settings, gold), seeds=(0,))
+    assert record["stratum"] == "ineffective_by_construction"
+    assert len(record["runs"]) == 1
