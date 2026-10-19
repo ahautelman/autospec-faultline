@@ -18,6 +18,7 @@ evaluation = [0, 1, 2, 3, 4]
 
 [certification]
 p_gold_min = 0.85          # one-sided 95% Clopper-Pearson lower bound, per edge and seed
+p_alt_min = 0.95           # edges of the alternative route behind a weak-by-design edge
 confidence = 0.95
 
 [gold]

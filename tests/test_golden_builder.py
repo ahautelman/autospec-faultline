@@ -117,3 +117,43 @@ def test_the_horizon_check_passes_when_the_edge_fits():
     gold = build_gold("fits", open_room_layout(), single_edge(start, goal),
                       resolution=RESOLUTION, max_steps=20)
     assert gold.certificate.tier1_ok
+
+
+def diamond(with_alternative: bool = True):
+    """start -> a, a -> goal (too long for the horizon), a -> b -> goal."""
+    from faultline.graph import AbstractGraph
+
+    graph = AbstractGraph()
+    start = graph.add_vertex("start", Box((0.5, 3.0), (1.5, 4.0)))
+    a = graph.add_vertex("a", Box((0.5, 0.5), (1.5, 1.5)))
+    goal = graph.add_vertex("goal", Box((7.0, 0.5), (7.9, 1.5)))
+    graph.add_edge(start, a)
+    graph.add_edge(a, goal)
+    if with_alternative:
+        b = graph.add_vertex("b", Box((4.0, 0.5), (5.0, 1.5)))
+        graph.add_edge(a, b)
+        graph.add_edge(b, goal)
+    graph.source, graph.target = start, goal
+    return graph
+
+
+def test_a_too_long_edge_is_rejected_unless_it_is_designated_weak():
+    strict = build_gold("strict", open_room_layout(), diamond(), resolution=RESOLUTION, max_steps=2)
+    assert not strict.certificate.tier1_ok
+    assert any("a->goal" in problem and "horizon" in problem for problem in strict.certificate.problems)
+    weak = build_gold("weak", open_room_layout(), diamond(), resolution=RESOLUTION, max_steps=2,
+                      weak_edges=("a->goal",))
+    assert weak.certificate.tier1_ok and weak.weak_edges == {"a->goal"}
+
+
+def test_a_weak_edge_without_an_alternative_route_fails_tier_one():
+    gold = build_gold("no_alt", open_room_layout(), diamond(with_alternative=False),
+                      resolution=RESOLUTION, max_steps=2, weak_edges=("a->goal",))
+    assert not gold.certificate.tier1_ok
+    assert any("no alternative route" in problem for problem in gold.certificate.problems)
+
+
+def test_a_weak_edge_naming_a_missing_edge_is_reported():
+    gold = build_gold("typo", open_room_layout(), diamond(), resolution=RESOLUTION, max_steps=2,
+                      weak_edges=("a->goal", "x->y"))
+    assert any("x->y" in problem for problem in gold.certificate.problems)

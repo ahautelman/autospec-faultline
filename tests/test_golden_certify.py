@@ -87,3 +87,52 @@ def test_the_real_tabular_dirl_stack_certifies_an_open_room_gold():
         TabularLearner, DiRL, config=CONFIG, cert_seeds=(100,), holdout_seeds=(105,), p_gold_min=0.85,
     )
     assert certified.certificate.certified, certified.certificate.problems
+
+
+def weak_gold():
+    from tests.test_golden_builder import diamond
+
+    return build_gold("diamond", RoomsLayout(doors={}), diamond(), resolution=24, max_steps=2,
+                      weak_edges=("a->goal",))
+
+
+def scripted_edges(probabilities, refined=()):
+    def run(graph, env, learner, config, graph_learner):
+        edges = [SimpleNamespace(source=s, target=t, probability=p) for (s, t), p in probabilities.items()]
+        steps = [SimpleNamespace(source=s, target=t, operator="or") for s, t in refined]
+        return SimpleNamespace(initial_edge_success=edges, steps=steps)
+    return run
+
+
+STRONG = {("start", "a"): 1.0, ("a", "b"): 1.0, ("b", "goal"): 1.0}
+
+
+def certify_weak(run, **overrides):
+    arguments = dict(config=CONFIG, cert_seeds=(100,), holdout_seeds=(105,), p_gold_min=0.85,
+                     p_alt_min=0.95, run=run)
+    arguments.update(overrides)
+    return certify_learning(weak_gold(), lambda: None, lambda: None, lambda: None, **arguments)
+
+
+def test_a_weak_edge_is_exempt_when_its_alternative_route_is_very_reliable():
+    certificate = certify_weak(scripted_edges({**STRONG, ("a", "goal"): 0.0})).certificate
+    assert certificate.certified, certificate.problems
+
+
+def test_a_weak_edge_needs_its_alternative_to_clear_the_higher_bar():
+    # 0.9 over 100 rollouts clears 0.85 on the lower bound only if 0.9 is high enough; use a clear miss.
+    certificate = certify_weak(scripted_edges({**STRONG, ("b", "goal"): 0.88, ("a", "goal"): 0.0})).certificate
+    assert certificate.tier2_ok is False
+    assert any("no alternative route with every edge" in problem for problem in certificate.problems)
+
+
+def test_a_non_weak_edge_below_the_floor_still_fails():
+    certificate = certify_weak(scripted_edges({**STRONG, ("start", "a"): 0.5, ("a", "goal"): 0.0})).certificate
+    assert certificate.tier2_ok is False
+
+
+def test_refining_a_weak_edge_is_a_note_but_refining_another_edge_fails_tier_three():
+    weak_only = certify_weak(scripted_edges({**STRONG, ("a", "goal"): 0.0}, refined=[("a", "goal")])).certificate
+    assert weak_only.tier3_ok is True and any("weak edge a->goal" in note for note in weak_only.notes)
+    strong = certify_weak(scripted_edges({**STRONG, ("a", "goal"): 0.0}, refined=[("start", "a")])).certificate
+    assert strong.tier3_ok is False

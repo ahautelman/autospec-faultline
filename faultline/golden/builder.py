@@ -36,6 +36,7 @@ def build_gold(
     max_steps: int,
     protocol_hash: str = "",
     max_shrink: float = DEFAULT_MAX_SHRINK,
+    weak_edges: Sequence[str] = (),
 ) -> GoldSpec:
     """Build and Tier-1-check a gold spec.
 
@@ -51,6 +52,9 @@ def build_gold(
         max_shrink: Largest fraction of an intended region the builder may remove
             before Tier 1 fails; a larger loss means the intended box was mostly
             infeasible.
+        weak_edges: Edge ids (``"a->goal"``) that are weak by design. They skip the
+            horizon check but each needs an alternative route made only of
+            non-weak edges, otherwise Tier 1 fails.
 
     How:
         Rasterises every region, then alternates two shrinking passes until nothing
@@ -108,7 +112,16 @@ def build_gold(
         if masks[edge.target.name].any() and not (masks[edge.target.name] <= reach).all():
             problems.append(f"edge {key} has target cells unreachable from its source")
 
+    weak = frozenset(weak_edges)
+    known = {edge_id(edge.source.name, edge.target.name) for edge in edges}
+    for unknown in sorted(weak - known):
+        problems.append(f"weak edge {unknown} is not in the graph")
     for edge in edges:
+        key = edge_id(edge.source.name, edge.target.name)
+        if key in weak:
+            if not alternative_paths(intended, edge.source.name, edge.target.name, weak, key):
+                problems.append(f"weak edge {key} has no alternative route of non-weak edges")
+            continue
         needed = _required_steps(grid, masks[edge.source.name], _box_of(edge.target, grid, masks))
         if needed is not None and needed > max_steps:
             problems.append(
@@ -127,6 +140,7 @@ def build_gold(
         traps=tuple(traps),
         graph=graph,
         viability=viability,
+        weak_edges=weak,
         shrinks=shrinks,
         resolution=resolution,
         max_steps=max_steps,
@@ -164,6 +178,40 @@ def _required_steps(grid: CellGrid, sources: Mask, target: Box | None) -> int | 
     nearest = np.clip(centres, target.lower, target.upper)
     farthest = float(np.linalg.norm(centres - nearest, axis=1).max())
     return int(np.ceil(max(0.0, farthest - SUCCESS_RADIUS) / MAX_SPEED))
+
+
+def alternative_paths(
+    graph: AbstractGraph, source: str, target: str, weak: frozenset[str], excluded: str
+) -> tuple[tuple[str, ...], ...]:
+    """Return the routes from ``source`` to ``target`` that avoid weak edges.
+
+    Args:
+        graph: The graph to search.
+        source: Start vertex name.
+        target: End vertex name.
+        weak: Weak-by-design edge ids, which a route may not use.
+        excluded: The edge id being replaced, which a route may not use either.
+
+    How:
+        Depth-first enumeration; the graph is a small DAG, so every simple path is
+        listed. Each route is returned as its tuple of edge ids.
+
+    Returns:
+        The routes, possibly empty.
+    """
+    routes: list[tuple[str, ...]] = []
+
+    def walk(name: str, used: tuple[str, ...]) -> None:
+        if name == target and used:
+            routes.append(used)
+            return
+        for edge in graph.edges:
+            key = edge_id(edge.source.name, edge.target.name)
+            if edge.source.name == name and key not in weak and key != excluded:
+                walk(edge.target.name, used + (key,))
+
+    walk(source, ())
+    return tuple(routes)
 
 
 def _all(grid: CellGrid) -> Mask:

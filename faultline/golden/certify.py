@@ -13,6 +13,7 @@ from dataclasses import replace
 from typing import Any
 
 from faultline import stats
+from faultline.golden.builder import alternative_paths
 from faultline.golden.spec import Certificate, GoldSpec, edge_id
 from faultline.refinement import AutoSpecConfig, run_autospec
 
@@ -27,6 +28,7 @@ def certify_learning(
     cert_seeds: Sequence[int],
     holdout_seeds: Sequence[int],
     p_gold_min: float,
+    p_alt_min: float = 0.95,
     confidence: float = 0.95,
     protocol_hash: str = "",
     run: Callable[..., Any] = run_autospec,
@@ -41,7 +43,9 @@ def certify_learning(
         config: AutoSpec configuration; its seed is replaced per run.
         cert_seeds: Seeds for Tier 2.
         holdout_seeds: Seeds for Tier 3, disjoint from ``cert_seeds``.
-        p_gold_min: Required lower bound for every edge and seed.
+        p_gold_min: Required lower bound for every non-weak edge and seed.
+        p_alt_min: Required lower bound for the edges of the alternative route behind
+            each weak-by-design edge.
         confidence: One-sided confidence of the lower bound.
         protocol_hash: Hash of the protocol file.
         run: The loop entry point; injectable so tests can script it.
@@ -81,20 +85,36 @@ def certify_learning(
             lowers.setdefault(key, []).append(
                 stats.one_sided_lower(successes, config.n_rollouts, confidence)
             )
-    tier2 = all(value >= p_gold_min for values in lowers.values() for value in values)
+    weak = gold.weak_edges
+    tier2 = True
     for key, values in lowers.items():
-        if min(values) < p_gold_min:
+        if key not in weak and min(values) < p_gold_min:
+            tier2 = False
             problems.append(f"edge {key} lower bound {min(values):.3f} < {p_gold_min}")
+    for key in sorted(weak):
+        source, target = key.split("->")
+        routes = alternative_paths(gold.graph, source, target, weak, key)
+        reliable = [
+            route for route in routes if all(min(lowers.get(e, [0.0])) >= p_alt_min for e in route)
+        ]
+        if not reliable:
+            tier2 = False
+            problems.append(f"weak edge {key} has no alternative route with every edge >= {p_alt_min}")
 
     tier3 = True
+    notes: list[str] = []
     for seed in holdout_seeds:
         result = run(
             gold.graph, make_env(), make_learner(), replace(config, seed=int(seed)), make_graph_learner()
         )
         accepted = [step for step in result.steps if step.operator is not None]
-        if accepted:
+        strong = [s for s in accepted if edge_id(s.source, s.target) not in weak]
+        for step in accepted:
+            if edge_id(step.source, step.target) in weak:
+                notes.append(f"seed {seed}: weak edge {step.source}->{step.target} refined by {step.operator}")
+        if strong:
             tier3 = False
-            names = ", ".join(f"{s.source}->{s.target}:{s.operator}" for s in accepted)
+            names = ", ".join(f"{s.source}->{s.target}:{s.operator}" for s in strong)
             problems.append(f"gold was refined on hold-out seed {seed}: {names}")
 
     certificate = Certificate(
@@ -104,7 +124,9 @@ def certify_learning(
         cert_seeds=tuple(int(s) for s in cert_seeds),
         edge_cp_lower={key: tuple(values) for key, values in lowers.items()},
         p_gold=p_gold_min,
+        p_alt=p_alt_min,
         protocol_hash=protocol_hash,
         problems=tuple(problems),
+        notes=tuple(notes),
     )
     return replace(gold, certificate=certificate)

@@ -41,8 +41,12 @@ class Certificate:
         cert_seeds: Seeds the learning tiers used.
         edge_cp_lower: Per-edge one-sided lower bounds, one per certification seed.
         p_gold: Minimum lower bound a gold edge must reach.
+        p_alt: Minimum lower bound for the edges of the alternative route behind a
+            weak-by-design edge.
         protocol_hash: Hash of the protocol file the run used.
         problems: Human-readable reasons for any failed check.
+        notes: Remarks that do not fail a tier (for example, refinements AutoSpec
+            made on a weak-by-design edge).
 
     How:
         "Certified" means certified under the protocol, never proven: refinement is
@@ -55,8 +59,10 @@ class Certificate:
     cert_seeds: tuple[int, ...] = ()
     edge_cp_lower: Mapping[EdgeId, tuple[float, ...]] = field(default_factory=dict)
     p_gold: float = 0.0
+    p_alt: float = 0.0
     protocol_hash: str = ""
     problems: tuple[str, ...] = ()
+    notes: tuple[str, ...] = ()
 
     @property
     def certified(self) -> bool:
@@ -82,6 +88,8 @@ class GoldSpec:
         traps: Physical absorbing traps, which the gold safe sets exclude.
         graph: The gold abstract graph.
         viability: Per-edge masks of the cells from which the edge can succeed.
+        weak_edges: Edges that are weak by design (for example too long for the
+            horizon). Each needs an alternative route of very reliable edges.
         shrinks: Per-vertex fraction of the intended region removed to make it
             feasible (``0.0`` means the intended box was kept as is).
         resolution: Cells per axis of the analysis grid.
@@ -95,6 +103,7 @@ class GoldSpec:
     traps: tuple[Predicate, ...]
     graph: AbstractGraph
     viability: Mapping[EdgeId, np.ndarray]
+    weak_edges: frozenset[EdgeId]
     shrinks: Mapping[str, float]
     resolution: int
     max_steps: int

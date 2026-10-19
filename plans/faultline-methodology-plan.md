@@ -56,3 +56,12 @@ Pilot on today's five hand-built correct graphs (PPO + DiRL, 1 cert seed, 1 hold
 `goal_trap`, `overwide_safety`, `unreachable_start`, `missing_waypoint` certify on all three tiers (38-88 s each).
 `missing_alternative` fails Tier 1: gold edge `a->goal` needs at least 7 steps and the horizon is 6. It is dead by design,
 and AutoSpec refines it on gold (Tier 3 fails). **Open design issue for M5**, see the discussion with the project owner.
+
+### M5 decision: weak-by-design gold edges
+Gold may contain edges marked weak by design (`build_gold(..., weak_edges=("a->goal",))`) when an alternative route of
+non-weak edges exists. Tier 1: weak edges skip the horizon check; each needs an alternative route. Tier 2: non-weak
+edges need a lower bound >= `p_gold_min` (0.85); each weak edge needs one alternative route whose edges all reach
+`p_alt_min` (0.95). Tier 3: zero refinements on non-weak edges; refinements on weak edges are recorded as notes.
+Pilot: `missing_alternative` certifies with `a->goal` weak (lower bounds 0.997 on the alternative route, 343 s).
+**Consequence for later steps:** AutoSpec refines the weak edge on gold itself (OrRefine on hold-out seed 105), so the false-repair
+rate on null runs, and the M5 effectiveness and recovery metrics, must treat designated weak edges separately.
