@@ -82,3 +82,13 @@ success trails gold by `effectiveness_min_gap` and some edge is below p, on `eff
 and the null need none), `screen` / `screen_with_learning`, and `Funnel` (per-family counts and reasons). Unobservable mutants
 are their own stratum, not dropped. The gates are tested on scripted baselines only; their thresholds meet real PPO output in
 step 8, where the funnel is the checkpoint before any evaluation run.
+
+## Step 6 status (metrics)
+Built `faultline/metrics/`: `regions` (fault removal, collateral retention = semantic recall, precision, IoU on the cell grid;
+removal alone cannot be gamed because a wiped region scores retention 0), `ged` (region-aware normalised edit distance),
+`ceiling` (oracle-witness repair per operator geometry, attainment ratio), `audit` (trajectory-level soundness audit and the
+S* vs proxy gap), `inference` (bootstrap CI, exact/normal Wilcoxon signed-rank, Holm). Clopper-Pearson is in `stats.py`.
+Open: `oracle_valid_operators` (which operators pass the threshold with oracle witnesses) needs a learner and is left for the
+runner (step 8); M4/M5 have no region ceiling (structural repair, scored by GED and the audit); S* needs end-to-end
+trajectories of the repaired routes, supplied by the runner via `experiments/satisfaction`. `min_semantic_class_count` in the
+protocol is not used yet. The old `experiments/faultline_metrics.py` stays until T9.
