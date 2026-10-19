@@ -32,7 +32,8 @@ observability_min_witnesses = 20
 [severity]
 pocket_mass = [0.10, 0.25, 0.50]      # M1, M3
 trap_unlabelled_fraction = [0.25, 0.50, 0.75]   # M2
-waypoints_dropped = [1, 2]            # M4
+waypoints_dropped = [1, 2]            # M4 (a separate factor, not a severity level)
+waypoint_position = [0.5, 0.25, 0.75] # M4: target position along the route, low/mid/high
 
 [metrics]
 grid_resolution = 240      # cells per axis over the 24-unit world (0.1 unit)

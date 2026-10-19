@@ -65,3 +65,12 @@ edges need a lower bound >= `p_gold_min` (0.85); each weak edge needs one altern
 Pilot: `missing_alternative` certifies with `a->goal` weak (lower bounds 0.997 on the alternative route, 343 s).
 **Consequence for later steps:** AutoSpec refines the weak edge on gold itself (OrRefine on hold-out seed 105), so the false-repair
 rate on null runs, and the M5 effectiveness and recovery metrics, must treat designated weak edges separately.
+
+## Step 4 status (parametric mutations and validity gate)
+Built: `faults/{ground_truth,graph_ops,placement,mutations,sampling,validity}.py` and `golden/env.py` (one environment
+for gold and faulty, traps installed as the absorbing `unsafe_region`). Mutations M1-M5 plus the null are pure
+`(gold, params, rng)` functions, deterministic given the seed. The validity gate checks region containment on the cell
+grid and L(phi*) in L(phi_f) on sampled gold-satisfying trajectories; it raises on a violation and on a vacuous check.
+Notes: M3 at an inner vertex needs a spec-only mouth hazard on the outgoing edge (reachable-but-not-viable cannot arise from
+physical traps with symmetric doors); M5 has no numeric severity (measured by the effectiveness gate later); the language
+check is sampling-based evidence, not a proof. The old `faults/{catalogue,injectors}.py` stay until step 8 (T9).
