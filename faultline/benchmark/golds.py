@@ -77,6 +77,7 @@ def route_chain(
     goal_room: tuple[int, int],
     *,
     hop_rooms: int = 1,
+    end_side: float = START_GOAL_SIDE,
 ) -> AbstractGraph | None:
     """Return the intended chain from ``start_room`` to ``goal_room`` along the door path.
 
@@ -86,6 +87,7 @@ def route_chain(
         goal_room: Room holding the target box.
         hop_rooms: Rooms between consecutive waypoints; 1 gives one-room hops, which PPO
             learns reliably, larger values give harder edges.
+        end_side: Side of the source and target boxes as a fraction of the room side.
 
     How:
         Takes the shortest door path (:func:`room_path`), puts a ``START_GOAL_SIDE`` box
@@ -99,13 +101,13 @@ def route_chain(
     if not rooms:
         return None
     size = layout.room_size
-    names, boxes = ["start"], [_room_box(rooms[0], size, START_GOAL_SIDE)]
+    names, boxes = ["start"], [_room_box(rooms[0], size, end_side)]
     for index, room in enumerate(rooms[1:-1], start=1):
         if index % hop_rooms == 0:
             names.append(f"w{len(names)}")
             boxes.append(_room_box(room, size, WAYPOINT_SIDE))
     names.append("goal")
-    boxes.append(_room_box(rooms[-1], size, START_GOAL_SIDE))
+    boxes.append(_room_box(rooms[-1], size, end_side))
     graph = AbstractGraph()
     vertices = [graph.add_vertex(n, b) for n, b in zip(names, boxes)]
     for left, right in zip(vertices, vertices[1:]):
@@ -114,9 +116,15 @@ def route_chain(
     return graph
 
 
-def rooms9_chain(layout: RoomsLayout | None = None) -> AbstractGraph:
+# Per-layout box size where the paper-sized 6x6 boxes made the last hop unlearnable (Tier 2 failed
+# on `default`: w3->goal lower bound 0.69-0.76 over 5 seeds). A design choice made after seeing
+# certification results, reported in the plan.
+ROOMS9_END_SIDE = {"default": 0.5}
+
+
+def rooms9_chain(layout: RoomsLayout | None = None, end_side: float = START_GOAL_SIDE) -> AbstractGraph:
     """Return the rooms9 intended chain: corner start room to opposite corner goal room."""
-    graph = route_chain(layout, (0, 0), (2, 2)) if layout is not None else None
+    graph = route_chain(layout, (0, 0), (2, 2), end_side=end_side) if layout is not None else None
     if graph is not None:
         return graph
     regions = default_regions()
@@ -182,13 +190,14 @@ def rooms9_gold(layout_name: str, *, resolution: int, protocol_hash: str = "", t
         The gold, or ``None`` when ``trap`` is set and no candidate is feasible.
     """
     layout = RoomsLayout(doors=ROOMS9_LAYOUTS[layout_name]())
-    graph = rooms9_chain(layout)
+    end_side = ROOMS9_END_SIDE.get(layout_name, START_GOAL_SIDE)
+    graph = rooms9_chain(layout, end_side)
     name = f"rooms9_{layout_name}" + ("_trap" if trap else "")
     if not trap:
         return build_gold(name, layout, graph, resolution=resolution, max_steps=ROOMS9_MAX_STEPS,
                           protocol_hash=protocol_hash)
     for strip in trap_candidates(layout, graph):
-        gold = build_gold(name, layout, rooms9_chain(layout), (strip,), resolution=resolution,
+        gold = build_gold(name, layout, rooms9_chain(layout, end_side), (strip,), resolution=resolution,
                           max_steps=ROOMS9_MAX_STEPS, protocol_hash=protocol_hash)
         if gold.certificate.tier1_ok:
             return gold

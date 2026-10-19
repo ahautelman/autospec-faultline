@@ -139,3 +139,10 @@ observation scale. Unresolved. Decision: ship the benchmark on the certified roo
 (candidate causes: observation scale, budget, seed sensitivity of the PPO recipe). Nothing was changed in the learner.
 The CLI now has `certify` (protocol seeds, one gold per worker, writes `certificates.json`), `--workers`, and `run` uses only
 certified golds unless `--uncertified` is given.
+
+### Step 8: full protocol certification of the rooms9 golds (5 certification + 5 hold-out seeds, PPO + DiRL)
+Certified: `mixed_star` (weakest edge lower bound 0.997), `mixed_star_trap` (0.972), `blocked_two_path` (0.997),
+`blocked_two_path_trap` (0.992). Failed: `default` (`w3->goal` 0.686) and `default_trap` (`w3->goal` 0.764, and refined on hold-out
+seeds 107 and 109). The single-seed pass at 0.88 earlier was a lucky seed. Fix applied to the world, not the threshold: on
+`default` only, the start and goal boxes shrink from 0.75 to 0.5 of the room side (`ROOMS9_END_SIDE`). This is a design choice
+made after seeing certification results; it is reported here and the two golds are recertified under the unchanged protocol.

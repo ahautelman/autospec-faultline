@@ -76,7 +76,8 @@ def main() -> None:
     if args.command == "certify":
         results = {}
         with ProcessPoolExecutor(args.workers, mp_context=context, initializer=workers.init_worker) as pool:
-            futures = {pool.submit(workers.certify_gold, g, settings): g.id for g in golds}
+            chosen = [g for g in golds if not args.only or args.only in g.id]
+            futures = {pool.submit(workers.certify_gold, g, settings): g.id for g in chosen}
             for future in as_completed(futures):
                 gold = future.result()
                 c = gold.certificate
