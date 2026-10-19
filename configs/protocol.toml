@@ -1,0 +1,38 @@
+# FaultLine benchmark protocol. Frozen before any evaluation run: change a value
+# only by creating a new protocol version, because its hash is stamped on every
+# certificate and result file.
+version = "1"
+
+[autospec]
+threshold = 0.8            # refinement threshold p (project decision, not the paper's 0.99)
+budget = 80000             # PPO steps per edge (faultline.learners.ppo.DEFAULT_BUDGET)
+n_rollouts = 1000          # evaluation rollouts per edge estimate
+avoid_tail_length = 2      # repo default; the paper uses 10 (documented deviation)
+learner = "ppo"            # edge learner
+method = "dirl"            # graph learner
+
+[seeds]
+certification = [100, 101, 102, 103, 104]
+evaluation = [0, 1, 2, 3, 4]
+
+[certification]
+p_gold_min = 0.85          # one-sided 95% Clopper-Pearson lower bound, per edge and seed
+confidence = 0.95
+
+[gates]
+effectiveness_seed_fraction = 0.8
+effectiveness_min_gap = 0.15
+observability_min_witnesses = 20
+
+[severity]
+pocket_mass = [0.10, 0.25, 0.50]      # M1, M3
+trap_unlabelled_fraction = [0.25, 0.50, 0.75]   # M2
+waypoints_dropped = [1, 2]            # M4
+
+[metrics]
+grid_resolution = 240      # cells per axis over the 24-unit world (0.1 unit)
+min_semantic_class_count = 50
+
+[statistics]
+bootstrap_resamples = 10000
+null_fraction = 0.2

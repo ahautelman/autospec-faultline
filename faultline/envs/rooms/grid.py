@@ -543,3 +543,30 @@ class RoomGrid:
         targets = self._check_rooms(target_rooms, "Target")
         safe = self._check_rooms(safe_rooms, "Safe")
         return frozenset(self._flood(targets, within=safe | targets))
+
+    def reachable(
+        self, source_rooms: Iterable[RoomKey], safe_rooms: Iterable[RoomKey]
+    ) -> frozenset[RoomKey]:
+        """Return the rooms a route from the sources can reach inside ``safe_rooms``.
+
+        Args:
+            source_rooms: Rooms the route starts in.
+            safe_rooms: Rooms the whole route must stay inside.
+
+        How:
+            Forward breadth-first search from the sources over the door graph,
+            expanding only through safe rooms. Sources are always included even
+            if the caller left them out of ``safe_rooms``. Doors are symmetric,
+            so this is the forward twin of :meth:`viability`; the two together
+            split a pocket into unreachable (goal inflation) and reachable but
+            non-viable (dead start).
+
+        Returns:
+            The reachable rooms, as a frozenset.
+
+        Raises:
+            ValueError: If a source is outside the grid.
+        """
+        sources = self._check_rooms(source_rooms, "Source")
+        safe = self._check_rooms(safe_rooms, "Safe")
+        return frozenset(self._flood(sources, within=safe | sources))
