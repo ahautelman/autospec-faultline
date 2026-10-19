@@ -153,3 +153,48 @@ Recertification of `default` and `default_trap` with 0.5-side end boxes under th
 Route pruning had no site: `add_shortcut` adds a weak-by-design edge that skips one waypoint across a wall (the chain through
 the skipped waypoint is its reliable alternative), giving `rooms9_<layout>_shortcut` golds; M5 applies and passes the validity gate
 on both. M4 now also runs a two-waypoint-drop variant (instance id suffix `|n2`) because dropping one waypoint was ineffective.
+
+## Status at hand-off and remaining work
+
+### Done and committed (steps 1-7 complete, step 8 partly)
+Steps 1-7 are implemented and tested. Step 8 has the cleanups, the rooms9 golds (one-room-hop waypoint chains, horizon 30), instance
+generation with a funnel, the runner (gates, AutoSpec, random-operator baseline, graph baselines, metrics, JSON with git and
+protocol hash), a CLI (`certify`, `funnel`, `screen`, `run`; `--workers` pool; resumable), and T9.
+
+### State of the rooms9 benchmark (output dir `reports/faultline_v1`)
+Full-protocol certification (5 + 5 seeds, PPO + DiRL) passed for `mixed_star`, `mixed_star_trap`, `blocked_two_path`,
+`blocked_two_path_trap`, `blocked_two_path_shortcut`. Failed: `default`, `default_trap` (excluded, `EXCLUDED_ROOMS9`) and
+`mixed_star_shortcut` (DiRL never trained `w3->goal` after reaching the goal through the weak shortcut; to be excluded in code,
+it is currently skipped only because `certificates.json` marks it uncertified). `certificates.json` there is a merge of three
+certification runs. Funnel (generation only, 5 instance seeds, 5 certified golds): M1 30 valid of 75, M2 30 of 75, M3 30 of 75,
+M4 150 of 150, M5 5 of 25 (one gold), nulls 25. The null count is below the required 20%; the code now adds replicates (uncommitted
+before this hand-off, committed with it), so the funnel must be re-run.
+
+### Remaining work, in order
+1. **Gate screening (the checkpoint before any evaluation run).** Run `python -m faultline.benchmark screen --out reports/faultline_v1
+   --workers 12` (about 2 min per instance plus generation, roughly an hour) and read `screen_funnel.json`: counts per family and
+   stage (ineffective, unobservable, accepted, `ineffective_by_construction` for M2). A killed run left no screen records. Decide
+   from the counts whether the grid is worth running; M4 is expected to be mostly ineffective (one-room hops stay learnable),
+   so check the `|n2` variant. If a family has no accepted instances, fix the mutation or golds, never the gates.
+2. **Size the evaluation grid** from measured times (gate about 2 min per instance, one evaluation seed 335-390 s on one core):
+   about 30 min per instance for 5 seeds, so a full grid is of the order of 150 CPU-hours before screening removes instances.
+   Consider fewer instance seeds or evaluation seeds only with the project owner.
+3. **Run `run`** on accepted and unobservable instances (M2 stays in its own stratum, no AvoidRefine recovery claim), 5 evaluation
+   seeds, nulls included. Records are JSON per instance; the run is resumable.
+4. **Analysis script** over the records: per family and severity, fault removal, collateral retention, F1, attainment, GED, audit,
+   S* and the proxy gap (needs end-to-end trajectories of the repaired routes through `experiments/satisfaction`, not wired yet),
+   Clopper-Pearson for rates, bootstrap CIs, Wilcoxon signed-rank with Holm across families (`metrics/inference.py`), the
+   baselines table (unrefined, random-operator, oracle, trivializer), and the false-repair rate on nulls with designated weak
+   edges excluded. Use the funnel counts as the denominator of every claim.
+5. **Gaps in the instrumentation:** `oracle_valid_operators` per instance (needs a learner run with oracle witnesses, not done);
+   PastRefine's fresh entry vertex at an inner vertex is not handled by `locus_region`; M4/M5 have no region ceiling; the language
+   audit is low powered (few fault-only trajectories); `min_semantic_class_count` in the protocol is unused.
+6. **Rooms100 (deferred by the project owner).** Tier 1 passes on all 7 worlds as one-room-hop chains (`world_gold`); Tier 2 fails
+   on `random_seed0` (8 of 16 edges below 0.85, 7 at 0.0) because PPO speed collapses on some edges. Needs a diagnosis (observation
+   scale 0-120, budget, seed sensitivity) before rooms100 golds can be certified; any learner change means re-certifying rooms9.
+7. **Cleanup after the grid:** remove the old `faults/{catalogue,injectors}.py` and `experiments/faultline_metrics.py` once nothing
+   depends on them (T9 still uses the catalogue); fix or update the pre-existing failure
+   `tests/test_learners.py::test_ppo_default_recipe_matches_the_paper_recipe` (ent_coef 0.05 vs 0.02), failing on main as well.
+8. **Write-up notes:** certification is "under the protocol", never proof; golds were chosen after pilots (one-room hops, horizon 30,
+   `default` excluded, `default` end boxes tried then dropped): report this selection and the certification table; the old
+   `faultline_full_*` results are not cited.

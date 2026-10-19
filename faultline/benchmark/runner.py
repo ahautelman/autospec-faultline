@@ -13,8 +13,8 @@ from typing import Any
 import numpy as np
 
 from faultline.baselines import graph_baselines, random_operator
-from faultline.benchmark.instances import Instance, instance_rng
-from faultline.faults.gates import Baseline, Stage, learn_baseline, screen_with_learning
+from faultline.benchmark.instances import Instance, evaluation_seeds, instance_rng
+from faultline.faults.gates import Baseline, GateResult, Stage, learn_baseline, screen_with_learning
 from faultline.faults.ground_truth import FaultKind
 from faultline.golden.env import make_env
 from faultline.golden.raster import CellGrid
@@ -115,6 +115,7 @@ def run_instance(
     *,
     seeds: tuple[int, ...] | None = None,
     skip_gates: bool = False,
+    gates_only: bool = False,
     log: Callable[[str], None] = lambda _msg: None,
 ) -> dict[str, Any]:
     """Screen one instance, run AutoSpec and the baselines on it, and score everything.
@@ -126,6 +127,7 @@ def run_instance(
         seeds: Evaluation seeds; the protocol's by default.
         skip_gates: Run the loop even when a gate rejects (for ablations); the stage is
             still recorded.
+        gates_only: Stop after the gates (the funnel checkpoint before any evaluation run).
         log: Progress sink.
 
     How:
@@ -154,12 +156,15 @@ def run_instance(
     }
     env = make_env(gold)
     started = time.perf_counter()
-    gate = screen_with_learning(
-        repair, gold_base, settings.gate_seeds,
-        lambda graph, seed: baseline_for(settings, graph, env, seed),
-        threshold=cfg.threshold, min_gap=gates["effectiveness_min_gap"],
-        seed_fraction=gates["effectiveness_seed_fraction"], min_witnesses=gates["observability_min_witnesses"],
-    )
+    if instance.kind is FaultKind.NULL:
+        gate = GateResult(Stage.ACCEPTED)      # the null is gold itself: nothing to screen
+    else:
+        gate = screen_with_learning(
+            repair, gold_base, settings.gate_seeds,
+            lambda graph, seed: baseline_for(settings, graph, env, seed),
+            threshold=cfg.threshold, min_gap=gates["effectiveness_min_gap"],
+            seed_fraction=gates["effectiveness_seed_fraction"], min_witnesses=gates["observability_min_witnesses"],
+        )
     record["gate"] = {
         "stage": gate.stage.value, "reason": gate.reason,
         "effectiveness": None if gate.effectiveness is None else {
@@ -177,10 +182,10 @@ def run_instance(
     record["stratum"] = (
         "ineffective_by_construction" if by_construction else gate.stage.value
     )
-    if gate.stage is Stage.INEFFECTIVE and not (skip_gates or by_construction):
+    if gates_only or (gate.stage is Stage.INEFFECTIVE and not (skip_gates or by_construction)):
         return record
 
-    seeds = tuple(seeds if seeds is not None else protocol["seeds"]["evaluation"])
+    seeds = tuple(seeds) if seeds is not None else evaluation_seeds(instance, protocol["seeds"]["evaluation"])
     repair_full = _with_ceiling(repair, grid)
     base = graph_baselines(repair, grid)
     record["baselines"] = {

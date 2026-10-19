@@ -93,13 +93,28 @@ def generate(
                         continue
                     funnel.record(kind, Stage.VALID)
                     out.append(Instance(ident, gold, kind, level, seed, repair))
-    wanted = int(np.ceil(protocol["statistics"]["null_fraction"] * len(out) / (1 - protocol["statistics"]["null_fraction"]))) if out else 0
-    nulls = [(g, s) for s in seeds for g in golds]
-    for gold, seed in nulls[:wanted]:
-        ident = instance_id(gold.id, FaultKind.NULL, "fixed", seed)
+    fraction = protocol["statistics"]["null_fraction"]
+    wanted = int(np.ceil(fraction * len(out) / (1 - fraction))) if out else 0
+    # A null is the gold itself, so replicates differ only in their evaluation seeds
+    # (see ``evaluation_seeds``); the replicate index is the instance seed.
+    nulls = [(g, r) for r in range(max(1, int(np.ceil(wanted / max(1, len(golds)))))) for g in golds]
+    for gold, replicate in nulls[:wanted]:
+        suffix = f"|r{replicate}" if replicate else ""
+        ident = instance_id(gold.id, FaultKind.NULL, "fixed", replicate) + suffix
         funnel.record(FaultKind.NULL, Stage.VALID)
-        out.append(Instance(ident, gold, FaultKind.NULL, "fixed", seed, mutate(FaultKind.NULL, gold, MutationParams(), instance_rng(ident))))
+        out.append(Instance(ident, gold, FaultKind.NULL, "fixed", replicate, mutate(FaultKind.NULL, gold, MutationParams(), instance_rng(ident))))
     return out
+
+
+def evaluation_seeds(instance: Instance, base: Sequence[int]) -> tuple[int, ...]:
+    """Return the evaluation seeds of an instance.
+
+    Mutants use the protocol's seeds. Null replicate ``r`` shifts them by ``r * len(base)`` so
+    replicates are independent runs of the same gold.
+    """
+    if instance.kind is not FaultKind.NULL:
+        return tuple(int(s) for s in base)
+    return tuple(int(s) + instance.seed * len(base) for s in base)
 
 
 def _variants(kind: FaultKind, levels: Sequence[str]) -> list[tuple[str, int]]:

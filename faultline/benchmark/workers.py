@@ -35,3 +35,12 @@ def run_one(instance, settings, seeds, out):
     record = run_instance(instance, settings, _GOLD_CACHE[instance.gold.id], seeds=seeds, log=print)
     write_record(record, out)
     return instance.id
+
+
+def screen_one(instance, settings, out):
+    """Run only the gates of one instance and write the record under ``out/screen``."""
+    if instance.gold.id not in _GOLD_CACHE:
+        _GOLD_CACHE[instance.gold.id] = gold_baselines(settings, instance.gold)
+    record = run_instance(instance, settings, _GOLD_CACHE[instance.gold.id], gates_only=True, log=print)
+    write_record(record, out / "screen")
+    return instance.id

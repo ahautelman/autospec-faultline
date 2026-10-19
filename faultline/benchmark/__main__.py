@@ -2,9 +2,11 @@
 
     python -m faultline.benchmark certify --out reports/faultline --workers 6
     python -m faultline.benchmark funnel  --out reports/faultline
+    python -m faultline.benchmark screen  --out reports/faultline --workers 6
     python -m faultline.benchmark run     --out reports/faultline --workers 6 --seeds 0 1 2 3 4
 
-``certify`` runs Tier 2 and Tier 3 with the protocol's seeds on every gold (one gold per
+``screen`` runs only the effectiveness and observability gates on every instance and writes
+``screen_funnel.json``: the checkpoint before any evaluation run. ``certify`` runs Tier 2 and Tier 3 with the protocol's seeds on every gold (one gold per
 worker) and writes ``certificates.json``. ``funnel`` is the checkpoint before any
 evaluation run: generation counts per family, no learner. ``run`` uses only golds that
 certified (pass ``--uncertified`` to override, for pilots), screens each instance with the
@@ -55,9 +57,22 @@ def _certified(golds, out: Path, require: bool):
     return [g for g in golds if g.id in ok]
 
 
+def write_screen_funnel(out: Path) -> dict:
+    """Aggregate the screen records into per-family stage counts and print them."""
+    counts: dict[str, dict[str, int]] = {}
+    for path in sorted((out / "screen").glob("*.json")):
+        r = json.loads(path.read_text())
+        stage = r.get("stratum") or r["gate"]["stage"]
+        counts.setdefault(r["kind"], {}).setdefault(stage, 0)
+        counts[r["kind"]][stage] += 1
+    (out / "screen_funnel.json").write_text(json.dumps(counts, indent=2))
+    print(json.dumps(counts, indent=1))
+    return counts
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(prog="faultline.benchmark")
-    parser.add_argument("command", choices=("certify", "funnel", "run"))
+    parser.add_argument("command", choices=("certify", "funnel", "screen", "run"))
     parser.add_argument("--out", type=Path, default=Path("reports/faultline"))
     parser.add_argument("--worlds", nargs="*", default=[])
     parser.add_argument("--instance-seeds", type=int, nargs="+", default=[0, 1, 2, 3, 4])
@@ -92,7 +107,7 @@ def main() -> None:
                 (args.out / "certificates.json").write_text(json.dumps(results, indent=2))
         return
 
-    golds = _certified(golds, args.out, require=args.command == "run" and not args.uncertified)
+    golds = _certified(golds, args.out, require=not args.uncertified)
     funnel = Funnel()
     instances = generate(golds, seeds=args.instance_seeds, protocol=protocol, funnel=funnel)
     (args.out / "funnel.json").write_text(json.dumps(funnel.to_dict(), indent=2))
@@ -104,6 +119,14 @@ def main() -> None:
     if args.only:
         instances = [i for i in instances if args.only in i.id]
     instances = instances[: args.limit]
+    if args.command == "screen":
+        done = {p.stem for p in (args.out / "screen").glob("*.json")}
+        pending = [i for i in instances if i.id.replace("|", "__") not in done]
+        with ProcessPoolExecutor(args.workers, mp_context=context, initializer=workers.init_worker) as pool:
+            for future in as_completed([pool.submit(workers.screen_one, i, settings, args.out) for i in pending]):
+                print("screened", future.result(), flush=True)
+        write_screen_funnel(args.out)
+        return
     pending = [i for i in instances if not (args.out / (i.id.replace("|", "__") + ".json")).exists()]
     seeds = tuple(args.seeds) if args.seeds else None
     if args.workers <= 1:
