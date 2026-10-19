@@ -107,13 +107,16 @@ def test_tabular_learner_accepts_a_training_seed():
 
 
 def test_ppo_default_recipe_matches_the_paper_recipe():
-    """The default PPO settings match paper section 6.1."""
+    """The default PPO settings match paper section 6.1, plus an entropy bonus."""
     assert DEFAULT_RECIPE["learning_rate"] == 0.0003
     assert DEFAULT_RECIPE["n_steps"] == 2048
     assert DEFAULT_RECIPE["batch_size"] == 64
     assert DEFAULT_RECIPE["n_epochs"] == 10
     assert DEFAULT_RECIPE["gamma"] == 0.99
     assert DEFAULT_RECIPE["policy_kwargs"]["net_arch"] == [64, 64]
+    # Added on top of the paper recipe to keep exploration alive on the deceptive
+    # scenarios; see faultline/learners/ppo.py.
+    assert DEFAULT_RECIPE["ent_coef"] == 0.02
 
 
 @pytest.mark.parametrize(
@@ -152,11 +155,16 @@ def _predict_reference_rollouts(env, edge, policy, n_rollouts, seed):
             action, _state = policy.predict(observation, deterministic=True)
             observation, _reward, terminated, truncated, info = env.step(action)
             states.append(np.asarray(observation, dtype=float))
-            safe = safe and bool(edge.safe.evaluate(states[-1][:2]))
+            final_safe = bool(edge.safe.evaluate(states[-1][:2])) and bool(
+                info.get("is_safe", True)
+            )
+            safe = safe and final_safe
             reached = bool(info["is_success"])
             if terminated or truncated:
                 break
-        rollouts.append(Rollout(tuple(states), reached=reached, safe=safe))
+        rollouts.append(
+            Rollout(tuple(states), reached=reached, safe=safe, final_safe=final_safe)
+        )
     return tuple(rollouts)
 
 
@@ -166,6 +174,7 @@ def _assert_rollouts_equal(actual, expected):
     for got, want in zip(actual, expected, strict=True):
         assert got.reached == want.reached
         assert got.safe == want.safe
+        assert got.final_safe == want.final_safe
         assert len(got.states) == len(want.states)
         for got_state, want_state in zip(got.states, want.states, strict=True):
             assert np.array_equal(got_state, want_state)

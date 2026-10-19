@@ -13,6 +13,8 @@ from faultline.scenarios.catalogue import (
     long_corridor,
     mixed_start,
     narrow_door,
+    resolve_scenario,
+    scenario_names,
     trap_goal,
 )
 from faultline.scenarios.runner import EdgeOutcome, ScenarioResult, run_scenario
@@ -26,6 +28,8 @@ __all__ = [
     "long_corridor",
     "mixed_start",
     "narrow_door",
+    "resolve_scenario",
     "run_scenario",
+    "scenario_names",
     "trap_goal",
 ]

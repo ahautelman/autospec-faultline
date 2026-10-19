@@ -1,54 +1,170 @@
 """The 9-rooms continuous environment from paper section 8.
 
-State is 4-D: ``(x, y, theta, d)`` = position, angle to the current goal sample,
-and distance to it. Action is 2-D: ``(v, theta)`` = speed and heading. The
-dynamics are point-mass: ``s' = s + (v * cos theta, v * sin theta)``. A move
-that crosses a solid wall keeps the agent in place.
-
-One episode targets one reach-avoid subgoal. Set the subgoal with
-:meth:`Rooms9.set_abstract_states` before each episode. The environment samples
-the goal point inside the target region at reset. Reaching that point while
-staying inside the safe region counts as success. This sampling is what makes a
-partly unreachable target region produce a low success rate.
+This module keeps the 9-rooms constants, the five hand-built door maps from the
+paper's validation scenarios, and :class:`Rooms9`, a thin subclass of the
+generic :class:`~faultline.envs.rooms.env.RoomsEnv` that supplies the 9-rooms
+defaults. The generic model lives in :mod:`faultline.envs.rooms`.
 """
 
 from __future__ import annotations
 
-import math
+from faultline.envs.rooms.env import (
+    ACTION_DIM,
+    DEFAULT_MAX_STEPS,
+    MAX_HEADING,
+    MAX_SPEED,
+    MIN_SPEED,
+    STATE_DIM,
+    RoomsEnv,
+)
+from faultline.envs.rooms.layout import (
+    DoorInterval,
+    RoomsLayout,
+    WallKey,
+    open_doors_except_sealed_rooms,
+)
+from faultline.spectrl.predicates import Box
 
-import gymnasium as gym
-import numpy as np
-from gymnasium import spaces
+ROOMS_PER_SIDE = 3
+ROOM_SIZE = 8.0
+WORLD_SIZE = ROOMS_PER_SIDE * ROOM_SIZE
+DOOR_WIDTH = 2.0
 
-from faultline.envs.layout import RoomsLayout
-from faultline.geometry import region_bounds
-from faultline.spectrl.predicates import PLANAR_DIMS, Empty, Predicate, Universe
-
-MAX_SPEED = 2.0
-MIN_SPEED = 0.0
-MAX_HEADING = math.pi
-DEFAULT_MAX_STEPS = 200
-
-# Success is landing on the goal point sampled at reset, not merely entering the
-# target region. The radius absorbs the small waypoint tolerance a controller uses
-# to stop, so a controller that lands on the point registers success. It stays
-# below one room so a goal behind a solid wall is not reached through the wall.
-SUCCESS_RADIUS = 1.0
-
-SUCCESS_REWARD = 10.0
-VIOLATION_REWARD = -10.0
-STEP_PENALTY = -0.01
-PROGRESS_SCALE = 0.1
-
-# Rejection sampling needs enough attempts to hit a small region inside the
-# 24x24 world; the 6x6 checkpoint regions cover about 6% of the area.
-SAMPLE_ATTEMPTS = 2000
-
-STATE_DIM = 4
-ACTION_DIM = 2
+# Each door is centred in the wall it cuts, so its offset from the wall's start
+# is half a room. The width then spans DOOR_WIDTH / 2 either side of the centre.
+_DOOR_CENTRE = ROOM_SIZE / 2.0
 
 
-class Rooms9(gym.Env):
+def default_doors() -> dict[WallKey, DoorInterval]:
+    """Return the door set of the default 9-rooms corridor.
+
+    How:
+        Opens four walls that chain START ``(0, 0)`` to MID ``(1, 1)`` to GOAL
+        ``(2, 2)``, passing through rooms ``(1, 0)`` and ``(2, 1)``. Each door
+        is centred in its wall.
+
+    Returns:
+        A mapping from wall key to the open interval on that wall.
+    """
+    half = DOOR_WIDTH / 2.0
+    return {
+        ("v", 0, 0): (_DOOR_CENTRE - half, _DOOR_CENTRE + half),
+        ("h", 1, 0): (ROOM_SIZE + _DOOR_CENTRE - half, ROOM_SIZE + _DOOR_CENTRE + half),
+        ("v", 1, 1): (ROOM_SIZE + _DOOR_CENTRE - half, ROOM_SIZE + _DOOR_CENTRE + half),
+        ("h", 2, 1): (
+            2.0 * ROOM_SIZE + _DOOR_CENTRE - half,
+            2.0 * ROOM_SIZE + _DOOR_CENTRE + half,
+        ),
+    }
+
+
+def default_regions() -> dict[str, Box]:
+    """Return the named checkpoint regions of the 9-rooms grid.
+
+    How:
+        Places START in the bottom-left room, MID in the centre room, and GOAL
+        in the top-right room. Each region is a 6x6 box inset by one unit from
+        its room walls.
+
+    Returns:
+        A mapping from region name to its box predicate.
+    """
+    return {
+        "start": Box((1.0, 1.0), (7.0, 7.0)),
+        "mid": Box((9.0, 9.0), (15.0, 15.0)),
+        "goal": Box((17.0, 17.0), (23.0, 23.0)),
+    }
+
+
+def long_corridor_doors() -> dict[WallKey, DoorInterval]:
+    """Return the door set of the paper's winding 9-rooms corridor.
+
+    How:
+        Opens the six internal walls the paper's long-corridor figure leaves
+        unblocked. The route from START in room ``(0, 0)`` climbs the left column
+        to room ``(0, 2)``, crosses into room ``(1, 2)``, and drops south into GOAL
+        in the centre room ``(1, 1)``. The far-right column is walled off from the
+        centre except at the bottom row, so that winding path is the single
+        intended route. Every opening spans its whole room edge, so the joined
+        rooms merge into one area rather than a centred gap.
+
+    Returns:
+        A mapping from wall key to the full-edge open interval.
+    """
+    size = ROOM_SIZE
+    return {
+        ("h", 0, 0): (0.0 * size, 1.0 * size),  # (0, 0) - (0, 1)
+        ("h", 0, 1): (0.0 * size, 1.0 * size),  # (0, 1) - (0, 2)
+        ("h", 1, 0): (1.0 * size, 2.0 * size),  # (1, 0) - (1, 1)
+        ("h", 1, 1): (1.0 * size, 2.0 * size),  # (1, 1) - (1, 2)
+        ("v", 0, 2): (2.0 * size, 3.0 * size),  # (0, 2) - (1, 2)
+        ("v", 1, 0): (0.0 * size, 1.0 * size),  # (1, 0) - (2, 0)
+    }
+
+
+def long_mixed_star_doors() -> dict[WallKey, DoorInterval]:
+    """Return the door set of the paper's long mixed star room.
+
+    How:
+        Opens the six internal walls the paper's long mixed star figure leaves
+        unblocked. The free area is a long zig-zag from START in room ``(0, 0)``:
+        it climbs into ``(0, 1)``, steps east into ``(1, 1)``, east again into
+        ``(2, 1)``, and finally climbs into GOAL in ``(2, 2)``. The bottom row
+        ``(0, 0) - (1, 0) - (2, 0)`` is a second, dead-end arm, and the two top-row
+        rooms ``(0, 2)`` and ``(1, 2)`` stay walled off. Every opening spans its
+        whole room edge, so the joined rooms merge into one area rather than a
+        centred gap.
+
+    Returns:
+        A mapping from wall key to the full-edge open interval.
+    """
+    size = ROOM_SIZE
+    return {
+        ("v", 0, 0): (0.0 * size, 1.0 * size),  # (0, 0) - (1, 0)
+        ("v", 1, 0): (0.0 * size, 1.0 * size),  # (1, 0) - (2, 0)
+        ("h", 0, 0): (0.0 * size, 1.0 * size),  # (0, 0) - (0, 1)
+        ("v", 0, 1): (1.0 * size, 2.0 * size),  # (0, 1) - (1, 1)
+        ("v", 1, 1): (1.0 * size, 2.0 * size),  # (1, 1) - (2, 1)
+        ("h", 2, 1): (2.0 * size, 3.0 * size),  # (2, 1) - (2, 2)
+    }
+
+
+def blocked_two_path_doors() -> dict[WallKey, DoorInterval]:
+    """Return the door set of the paper's blocked two-path room.
+
+    How:
+        Reproduces the paper's two-path figure. START sits in room ``(0, 0)``, the
+        left column climbs into MID1, the merged pair ``(0, 2) + (1, 2)``; the
+        centre column drops from MID1 through room ``(1, 1)`` into MID2, the merged
+        pair ``(1, 0) + (2, 0)``; and the right column climbs from MID2 into GOAL in
+        room ``(2, 2)``. Two of the four interior vertical walls -- START to the
+        bottom-middle room and MID1 to GOAL -- stay solid, so the direct edge that
+        would shorten each nominal route is blocked and only the winding path
+        realises both. Every wall the winding route crosses is fully open, so each
+        adjacent pair of rooms it joins merges into one area.
+
+    Returns:
+        A mapping from wall key to the open interval on that wall.
+    """
+    size = ROOM_SIZE
+    return {
+        # Full-edge merges: MID1 spans rooms (0, 2) and (1, 2); MID2 spans rooms
+        # (1, 0) and (2, 0).
+        ("v", 0, 2): (2.0 * size, 3.0 * size),  # (0, 2) - (1, 2)
+        ("v", 1, 0): (0.0 * size, 1.0 * size),  # (1, 0) - (2, 0)
+        # The centre column is open from MID1 down through (1, 1) into MID2.
+        ("h", 1, 1): (1.0 * size, 2.0 * size),  # (1, 1) - (1, 2)
+        ("h", 1, 0): (1.0 * size, 2.0 * size),  # (1, 0) - (1, 1)
+        # The left and right columns are fully open, so each column's stacked
+        # rooms merge the same way the MID1 and MID2 pairs do.
+        ("h", 0, 0): (0.0 * size, 1.0 * size),  # (0, 0) - (0, 1)
+        ("h", 0, 1): (0.0 * size, 1.0 * size),  # (0, 1) - (0, 2)
+        ("h", 2, 0): (2.0 * size, 3.0 * size),  # (2, 0) - (2, 1)
+        ("h", 2, 1): (2.0 * size, 3.0 * size),  # (2, 1) - (2, 2)
+    }
+
+
+class Rooms9(RoomsEnv):
     """A 3x3 room grid with point-mass motion and reach-avoid subgoals.
 
     Args:
@@ -60,230 +176,37 @@ class Rooms9(gym.Env):
             leave. Defaults to no trap.
 
     How:
-        Holds the current subgoal (source, target, and safe regions), the optional
-        trap, the agent position, and a seeded RNG. ``reset`` samples a start
-        inside the source region and a goal inside the target region. ``step``
-        applies the point-mass dynamics, blocks wall crossings, ends the episode
-        as a violation when the agent enters the trap, and scores the reach-avoid
-        condition.
+        Supplies the 9-rooms default layout to :class:`RoomsEnv`; all dynamics
+        are inherited unchanged.
     """
-
-    metadata = {"render_modes": []}
 
     def __init__(
         self,
         layout: RoomsLayout | None = None,
         max_steps: int = DEFAULT_MAX_STEPS,
-        unsafe_region: Predicate | None = None,
+        unsafe_region=None,
     ) -> None:
-        super().__init__()
-        self.layout = layout if layout is not None else RoomsLayout()
-        self.max_steps = int(max_steps)
-        world = self.layout.world_size
-        self.observation_space = spaces.Box(
-            low=np.array([0.0, 0.0, -MAX_HEADING, 0.0], dtype=np.float32),
-            high=np.array([world, world, MAX_HEADING, world * 1.5], dtype=np.float32),
-            dtype=np.float32,
-        )
-        self.action_space = spaces.Box(
-            low=np.array([MIN_SPEED, -MAX_HEADING], dtype=np.float32),
-            high=np.array([MAX_SPEED, MAX_HEADING], dtype=np.float32),
-            dtype=np.float32,
-        )
-        self.source_region: Predicate = Universe()
-        self.target_region: Predicate = Universe()
-        self.safe_region: Predicate = Universe()
-        self.unsafe_region: Predicate = unsafe_region if unsafe_region is not None else Empty()
-        self._rng = np.random.default_rng(0)
-        self._position = np.zeros(2, dtype=float)
-        self._goal = np.zeros(2, dtype=float)
-        self._steps = 0
-        self._violated = False
+        if layout is None:
+            layout = RoomsLayout(default_doors(), ROOM_SIZE, ROOMS_PER_SIDE)
+        super().__init__(layout=layout, max_steps=max_steps, unsafe_region=unsafe_region)
 
-    @property
-    def current_goal(self) -> np.ndarray:
-        """Return the goal point sampled for the current episode.
 
-        How:
-            Returns a copy of the stored goal so callers cannot mutate the
-            environment state.
-
-        Returns:
-            The goal position ``(x, y)``.
-        """
-        return self._goal.copy()
-
-    def set_abstract_states(
-        self, source_region: Predicate, target_region: Predicate, safe_region: Predicate
-    ) -> None:
-        """Set the reach-avoid subgoal for the next episode.
-
-        Args:
-            source_region: Region that the start position is sampled from.
-            target_region: Region that the goal point is sampled from.
-            safe_region: Predicate that must hold throughout the episode.
-
-        How:
-            Stores the three predicates. The next :meth:`reset` samples start
-            and goal from the two regions.
-
-        Returns:
-            None: the subgoal is stored on the environment.
-        """
-        self.source_region = source_region
-        self.target_region = target_region
-        self.safe_region = safe_region
-
-    def _sample_point(self, region: Predicate) -> np.ndarray:
-        """Sample a world point inside a region.
-
-        Args:
-            region: The predicate that the point must satisfy.
-
-        How:
-            Uses the region's axis-aligned bounds when they are known, which makes
-            sampling a small refined region reliable: the sample is drawn inside
-            the bounds and rejected when it falls outside the region. An unbounded
-            region falls back to rejection sampling over the whole world. The
-            seeded RNG makes both paths reproducible.
-
-        Returns:
-            A position ``(x, y)`` inside the region.
-
-        Raises:
-            RuntimeError: If no sample inside the region is found within
-                ``SAMPLE_ATTEMPTS``.
-        """
-        world = self.layout.world_size
-        bounds = region_bounds(region, PLANAR_DIMS)
-        if bounds is not None:
-            low = np.maximum(bounds[0], 0.0)
-            high = np.minimum(bounds[1], world)
-            if np.all(low <= high):
-                for _ in range(SAMPLE_ATTEMPTS):
-                    point = self._rng.uniform(low, high)
-                    if region.evaluate(point):
-                        return point
-        for _ in range(SAMPLE_ATTEMPTS):
-            point = self._rng.uniform(0.0, world, size=2)
-            if region.evaluate(point):
-                return point
-        raise RuntimeError("Could not sample a point inside the region")
-
-    def _observation(self) -> np.ndarray:
-        """Build the 4-D observation for the current position.
-
-        How:
-            Computes the offset to the goal, then the angle and distance to it.
-
-        Returns:
-            ``(x, y, theta, d)`` as a float32 array.
-        """
-        offset = self._goal - self._position
-        distance = float(np.linalg.norm(offset))
-        heading = float(math.atan2(offset[1], offset[0]))
-        return np.array(
-            [self._position[0], self._position[1], heading, distance], dtype=np.float32
-        )
-
-    def reset(self, *, seed: int | None = None, options: dict | None = None):
-        """Start a new episode for the current subgoal.
-
-        Args:
-            seed: Optional RNG seed; reseeds the environment when given.
-            options: Unused, kept for the gymnasium interface.
-
-        How:
-            Optionally reseeds, samples the goal from the target region and the
-            start from the source region, then clears the step count and the
-            violation flag.
-
-        Returns:
-            The first observation and an info dict with ``is_success`` false.
-        """
-        if seed is not None:
-            self._rng = np.random.default_rng(seed)
-        self._goal = self._sample_point(self.target_region)
-        self._position = self._sample_point(self.source_region)
-        self._steps = 0
-        self._violated = False
-        return self._observation(), {"is_success": False}
-
-    def step(self, action: np.ndarray):
-        """Apply one action and score the reach-avoid condition.
-
-        Args:
-            action: ``(v, theta)`` speed and heading.
-
-        How:
-            Moves the agent by the point-mass rule, clips to the world and
-            blocks wall crossings, then checks the sampled goal point and the
-            safe region. A violation or a success ends the episode. The step
-            limit truncates the episode.
-
-        Returns:
-            The observation, reward, terminated flag, truncated flag, and an
-            info dict with ``is_success``.
-        """
-        previous_distance = float(np.linalg.norm(self._goal - self._position))
-        self._position = self._advance(action)
-        self._steps += 1
-        distance = float(np.linalg.norm(self._goal - self._position))
-        spec_safe = bool(self.safe_region.evaluate(self._position))
-        in_trap = bool(self.unsafe_region.evaluate(self._position))
-        safe = spec_safe and not in_trap
-        reached = bool(distance <= SUCCESS_RADIUS and safe)
-        if not spec_safe or in_trap:
-            self._violated = True
-        success = reached and not self._violated
-        reward = self._reward(success, safe, previous_distance, distance)
-        terminated = bool(success or self._violated)
-        truncated = bool(self._steps >= self.max_steps and not terminated)
-        info = {"is_success": success, "is_safe": safe}
-        return self._observation(), reward, terminated, truncated, info
-
-    def _advance(self, action: np.ndarray) -> np.ndarray:
-        """Return the next position for an action.
-
-        Args:
-            action: ``(v, theta)`` speed and heading.
-
-        How:
-            Builds the point-mass step, clips the result to the world, and
-            returns the old position when the step crosses a solid wall.
-
-        Returns:
-            The next position ``(x, y)``.
-        """
-        speed = float(np.clip(action[0], MIN_SPEED, MAX_SPEED))
-        heading = float(action[1])
-        delta = np.array([speed * math.cos(heading), speed * math.sin(heading)])
-        candidate = self.layout.clamp(self._position + delta)
-        if self.layout.segment_is_blocked(self._position, candidate):
-            return self._position
-        return candidate
-
-    def _reward(
-        self, success: bool, safe: bool, previous_distance: float, distance: float
-    ) -> float:
-        """Score one step.
-
-        Args:
-            success: Whether the episode just succeeded.
-            safe: Whether the position is inside the safe region.
-            previous_distance: Distance to the goal before the step.
-            distance: Distance to the goal after the step.
-
-        How:
-            Returns the success reward on success, the violation penalty on an
-            unsafe position, and otherwise a small step penalty plus progress
-            shaping toward the goal.
-
-        Returns:
-            The step reward.
-        """
-        if success:
-            return SUCCESS_REWARD
-        if not safe:
-            return VIOLATION_REWARD
-        return STEP_PENALTY + PROGRESS_SCALE * (previous_distance - distance)
+__all__ = [
+    "ACTION_DIM",
+    "DEFAULT_MAX_STEPS",
+    "DOOR_WIDTH",
+    "MAX_HEADING",
+    "MAX_SPEED",
+    "MIN_SPEED",
+    "ROOMS_PER_SIDE",
+    "ROOM_SIZE",
+    "STATE_DIM",
+    "WORLD_SIZE",
+    "Rooms9",
+    "blocked_two_path_doors",
+    "default_doors",
+    "default_regions",
+    "long_corridor_doors",
+    "long_mixed_star_doors",
+    "open_doors_except_sealed_rooms",
+]

@@ -32,7 +32,8 @@ def test_add_refine_is_sound():
     graph, edge = chain_graph()
     rollouts = (
         rollout([[0.2, 0.2], [1.2, 1.2], [1.6, 1.6]], reached=True, safe=True),
-        rollout([[0.8, 0.8], [1.4, 1.4], [1.9, 1.9]], reached=True, safe=True),
+        rollout([[0.8, 0.8], [1.4, 1.2], [1.9, 1.9]], reached=True, safe=True),
+        rollout([[0.5, 0.5], [1.3, 1.5], [1.9, 1.9]], reached=True, safe=True),
     )
     assert_soundness(graph, add_refine(graph, edge, estimate(rollouts)))
 

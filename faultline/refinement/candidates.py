@@ -6,9 +6,9 @@ and score the *replacement* it made. This module wraps each operator into a
 :class:`Candidate`: the refined graph plus the edge routes that stand in for the
 original edge.
 
-Routes exist because the operators replace one edge with different shapes: a
-two-hop path for SeqRefine and AddRefine, a single re-homed edge for PastRefine,
-and one or more parallel routes for OrRefine. The loop scores the best route,
+Routes exist because the operators replace one edge with different shapes: the
+relabelled edge itself for SeqRefine, a two-hop path for AddRefine, a single
+re-homed edge for PastRefine, and one or more parallel routes for OrRefine. The loop scores the best route,
 which matches the best-path product reporting rule of paper section 6.2.
 """
 
@@ -17,8 +17,14 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from faultline.graph.abstract_graph import AbstractGraph, Edge, Vertex
-from faultline.learners.base import CannotRefineError, EdgeEstimate
-from faultline.refinement.operators import add_refine, or_refine, past_refine, seq_refine
+from faultline.learners.base import EdgeEstimate
+from faultline.refinement.operators import (
+    _copied_edge,
+    add_refine,
+    or_refine,
+    past_refine,
+    seq_refine,
+)
 
 
 @dataclass(frozen=True)
@@ -45,7 +51,7 @@ def seq_candidate(
     estimate: EdgeEstimate,
     avoid_tail_length: int,
 ) -> Candidate:
-    """Wrap SeqRefine into a candidate two-hop route.
+    """Wrap SeqRefine into a candidate single-edge route.
 
     Args:
         graph: The graph containing ``edge``.
@@ -54,18 +60,14 @@ def seq_candidate(
         avoid_tail_length: Trailing states AvoidRefine blocks.
 
     How:
-        Calls :func:`~faultline.refinement.operators.seq_refine` and identifies
-        the fresh vertex it adds, then reports the two edges through it as one
-        route.
+        Calls :func:`~faultline.refinement.operators.seq_refine`, which relabels
+        the edge in place, so the route is that same edge in the refined graph.
 
     Returns:
-        The candidate with the refined graph and the two-hop route.
-
-    Raises:
-        ValueError: If the operator did not add the vertex its contract requires.
+        The candidate with the refined graph and the relabelled edge as its route.
     """
     refined = seq_refine(graph, edge, estimate, avoid_tail_length)
-    return _waypoint_candidate(refined, graph, edge)
+    return Candidate(refined, ((_copied_edge(refined, graph, edge),),))
 
 
 def add_candidate(
@@ -143,26 +145,27 @@ def or_candidate(
         avoid_tail_length: Unused; present so every builder shares one signature.
 
     How:
-        Calls :func:`~faultline.refinement.operators.or_refine`, then for every
-        other parent of the target reports the two-hop route ``source -> sibling
-        -> target``. The untouched original edge is skipped.
+        Calls :func:`~faultline.refinement.operators.or_refine`, which appends its
+        new ``source -> sibling`` links after the copied edges. Each appended link
+        is paired with the sibling edges leaving its target for the original
+        target, giving the two-hop route ``source -> sibling -> target``. Reading
+        the links by position rather than by endpoint names skips siblings that
+        OrRefine left out (they would close a cycle) and never confuses a new link
+        with an older parallel edge between the same vertices.
 
     Returns:
         The candidate with the refined graph and one route per sibling.
-
-    Raises:
-        CannotRefineError: If the refined graph contains no sibling route.
     """
     refined = or_refine(graph, edge)
-    target = _vertex(refined, edge.target.name)
-    routes = []
-    for sibling in refined.predecessors(target):
-        if sibling.source.name == edge.source.name and sibling.target.name == edge.target.name:
-            continue
-        routes.append((_edge_ref(refined, edge.source.name, sibling.source.name), sibling))
-    if not routes:
-        raise CannotRefineError("OrRefine produced no alternative route to score")
-    return Candidate(refined, tuple(routes))
+    target = _copied_edge(refined, graph, edge).target
+    links = refined.edges[len(graph.edges) :]
+    routes = tuple(
+        (link, sibling)
+        for link in links
+        for sibling in refined.predecessors(target)
+        if sibling.source is link.target
+    )
+    return Candidate(refined, routes)
 
 
 def _waypoint_candidate(refined: AbstractGraph, graph: AbstractGraph, edge: Edge) -> Candidate:
@@ -174,25 +177,21 @@ def _waypoint_candidate(refined: AbstractGraph, graph: AbstractGraph, edge: Edge
         edge: The edge that was refined.
 
     How:
-        Locates the fresh vertex and reports the route through it, from the
-        original source to the original target. A two-hop route is the norm; when
-        the refined target was the graph target, SeqRefine makes the fresh vertex
-        the target and drops the bridge, so the route is the single new edge.
+        Locates the fresh vertex and reports the two-hop route through it, from
+        the original source to the original target.
 
     Returns:
         The candidate with the route standing in for the original edge.
 
     Raises:
-        ValueError: If the fresh vertex, or the first edge into it, is missing.
+        ValueError: If the fresh vertex, or an edge through it, is missing.
     """
     fresh = _optional_fresh_vertex(refined, graph)
     if fresh is None:
         raise ValueError("Operator did not add the waypoint vertex its contract requires")
     first = _edge_ref(refined, edge.source.name, fresh.name)
-    bridge = _optional_edge_ref(refined, fresh.name, edge.target.name)
-    if bridge is None:
-        return Candidate(refined, ((first,),))
-    return Candidate(refined, ((first, bridge),))
+    second = _edge_ref(refined, fresh.name, edge.target.name)
+    return Candidate(refined, ((first, second),))
 
 
 def _optional_fresh_vertex(refined: AbstractGraph, graph: AbstractGraph) -> Vertex | None:
@@ -234,53 +233,7 @@ def _edge_ref(graph: AbstractGraph, source_name: str, target_name: str) -> Edge:
     Raises:
         ValueError: If no edge has those endpoints.
     """
-    edge = _optional_edge_ref(graph, source_name, target_name)
-    if edge is None:
-        raise ValueError(f"No edge {source_name!r} -> {target_name!r} in the candidate graph")
-    return edge
-
-
-def _optional_edge_ref(
-    graph: AbstractGraph, source_name: str, target_name: str
-) -> Edge | None:
-    """Return the edge with the given endpoint names, or ``None`` if absent.
-
-    Args:
-        graph: The graph to search.
-        source_name: Source vertex name.
-        target_name: Target vertex name.
-
-    How:
-        Scans the edge list for the first endpoint-name match and reports the
-        absence instead of raising, so a caller can distinguish a missing bridge
-        from a malformed operator result.
-
-    Returns:
-        The matching edge, or ``None`` when no edge has those endpoints.
-    """
     for edge in graph.edges:
         if edge.source.name == source_name and edge.target.name == target_name:
             return edge
-    return None
-
-
-def _vertex(graph: AbstractGraph, name: str) -> Vertex:
-    """Return the vertex of ``graph`` with the given name.
-
-    Args:
-        graph: The graph to search.
-        name: The vertex name to find.
-
-    How:
-        Scans the graph's vertices for a name match and fails fast when absent.
-
-    Returns:
-        The matching vertex.
-
-    Raises:
-        ValueError: If no vertex has that name.
-    """
-    for vertex in graph.vertices:
-        if vertex.name == name:
-            return vertex
-    raise ValueError(f"No vertex {name!r} in the candidate graph")
+    raise ValueError(f"No edge {source_name!r} -> {target_name!r} in the candidate graph")

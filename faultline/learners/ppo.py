@@ -5,6 +5,11 @@ reach-avoid edge, using the recipe in section 6.1: a two-layer 64-unit network,
 learning rate 3e-4, 2048 rollout steps, batch size 64, 10 epochs per update, and
 discount 0.99. The paper evaluates each edge with 1000 rollouts.
 
+One entry departs from the paper: a small entropy bonus (``ent_coef``) keeps the
+policy from collapsing to a deterministic "do nothing" optimum on the deceptive
+scenarios whose goal line is guarded by an invisible trap. The paper's recipe sets
+no entropy term.
+
 Stable-Baselines3 lives in the optional ``interop`` extra. This module imports
 it inside :meth:`PPOEdgeLearner.train_edge`, so importing the module never
 requires the extra.
@@ -26,14 +31,18 @@ DEFAULT_ROLLOUTS = 1000
 
 # The paper's recipe from section 6.1: a two-layer 64-unit network, learning
 # rate 3e-4, 2048 rollout steps, batch size 64, 10 epochs per update, and
-# discount 0.99. A caller may override entries; the tests override them to keep
-# a single contract check fast.
+# discount 0.99. ``ent_coef`` is added on top: without an entropy bonus PPO
+# collapses to a deterministic no-op on the deceptive scenarios (narrow_door,
+# where the goal line is guarded by an invisible trap), because idling costs less
+# than the trap penalty. A caller may override entries; the tests override them
+# to keep a single contract check fast.
 DEFAULT_RECIPE: dict[str, Any] = {
     "learning_rate": 0.0003,
     "n_steps": 2048,
     "batch_size": 64,
     "n_epochs": 10,
     "gamma": 0.99,
+    "ent_coef": 0.05,
     "policy_kwargs": {"net_arch": [64, 64]},
 }
 
@@ -214,7 +223,8 @@ class PPOEdgeLearner:
             per-step training-mode switch is paid a single time, not per rollout
             step), then runs each episode from a freshly seeded reset with
             deterministic actions. The safe flag tracks whether every visited state
-            stayed inside the safe region.
+            stayed inside the safe region; the final-safe flag records whether the
+            episode ended there, which is the AvoidRefine witness.
 
         Returns:
             An :class:`EdgeEstimate` with the success probability and rollouts.
@@ -229,48 +239,50 @@ class PPOEdgeLearner:
         rollouts = []
         for episode in range(n_rollouts):
             observation, _info = env.reset(seed=seed + episode)
-            rollouts.append(self._episode(env, edge, action, observation))
+            rollouts.append(run_episode(env, edge, action, observation))
         success = sum(1 for rollout in rollouts if rollout.success) / n_rollouts
         return EdgeEstimate(success, tuple(rollouts))
 
-    def _episode(
-        self,
-        env: Any,
-        edge: Edge,
-        action: Callable[[np.ndarray], np.ndarray],
-        observation: np.ndarray,
-    ) -> Rollout:
-        """Run one greedy episode and record it.
 
-        Args:
-            env: The environment for the episode.
-            edge: The reach-avoid edge under test.
-            action: Deterministic action function, normally from
-                :func:`greedy_action_fn`.
-            observation: The first observation from ``reset``.
+def run_episode(
+    env: Any,
+    edge: Edge,
+    action: Callable[[np.ndarray], np.ndarray],
+    observation: np.ndarray,
+) -> Rollout:
+    """Run one episode from a reset observation and record it.
 
-        How:
-            Steps with the deterministic action function until the episode ends.
-            Records every state and tracks the safe region and the success flag.
+    Args:
+        env: The environment for the episode.
+        edge: The reach-avoid edge under test.
+        action: Deterministic action function, normally from
+            :func:`greedy_action_fn`.
+        observation: The first observation from ``reset``.
 
-        Returns:
-            The rollout for this episode.
-        """
-        states = [np.asarray(observation, dtype=float)]
-        safe = bool(edge.safe.evaluate(states[0][:2]))
-        reached = False
-        while True:
-            step_action = action(observation)
-            observation, _reward, terminated, truncated, info = env.step(step_action)
-            states.append(np.asarray(observation, dtype=float))
-            # The edge's safe region is the specification's; the environment may
-            # also carry an unmodelled trap (info["is_safe"]), which must count too.
-            safe = (
-                safe
-                and bool(edge.safe.evaluate(states[-1][:2]))
-                and bool(info.get("is_safe", True))
-            )
-            reached = bool(info["is_success"])
-            if terminated or truncated:
-                break
-        return Rollout(tuple(states), reached=reached, safe=safe)
+    How:
+        Steps with the deterministic action function until the episode ends.
+        Records every state, tracks the all-time safe flag for success, and
+        records whether the final state was safe for AvoidRefine.
+
+    Returns:
+        The rollout for this episode.
+    """
+    states = [np.asarray(observation, dtype=float)]
+    safe = bool(edge.safe.evaluate(states[0][:2]))
+    step_safe = safe
+    reached = False
+    info: dict[str, Any] = {"is_safe": safe}
+    while True:
+        step_action = action(observation)
+        observation, _reward, terminated, truncated, info = env.step(step_action)
+        states.append(np.asarray(observation, dtype=float))
+        # The edge's safe region is the specification's; the environment may
+        # also carry an unmodelled trap (info["is_safe"]), which must count too.
+        step_safe = bool(edge.safe.evaluate(states[-1][:2])) and bool(
+            info.get("is_safe", True)
+        )
+        safe = safe and step_safe
+        reached = bool(info["is_success"])
+        if terminated or truncated:
+            break
+    return Rollout(tuple(states), reached=reached, safe=safe, final_safe=step_safe)

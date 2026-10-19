@@ -39,6 +39,16 @@ def test_reset_returns_a_four_component_state_inside_the_source():
     assert info["is_success"] is False
 
 
+def test_reset_with_a_start_option_continues_from_that_position():
+    """A chained route resumes the next edge where the previous one ended."""
+    env = Rooms9()
+    env.set_abstract_states(Box((2.0, 2.0), (4.0, 4.0)), Universe(), Universe())
+
+    observation, _ = env.reset(seed=0, options={"start": np.array([5.5, 6.5])})
+
+    assert np.allclose(observation[:2], [5.5, 6.5])
+
+
 def test_step_applies_point_mass_dynamics():
     """A free step moves the agent by speed times heading."""
     env = Rooms9(layout=SOLID_LAYOUT)
@@ -140,10 +150,11 @@ def test_entering_the_trap_ends_the_episode_as_an_unsafe_violation():
     env = Rooms9(layout=SOLID_LAYOUT, unsafe_region=trap)
     env.set_abstract_states(Box((1.4, 2.4), (1.6, 2.6)), FAR_TARGET, Universe())
     env.reset(seed=0)
-    _observation, _reward, terminated, _truncated, info = env.step(
+    _observation, _reward, terminated, truncated, info = env.step(
         np.array([1.0, 0.0], dtype=np.float32)
     )
     assert terminated is True
+    assert truncated is False
     assert info["is_safe"] is False
     assert info["is_success"] is False
 

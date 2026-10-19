@@ -69,17 +69,26 @@ class Overlay:
 
     Args:
         kind: ``"hull"``, ``"waypoint"``, ``"half_plane"``, or ``"edge"``.
-        points: Sampled states the operator consumed, as ``(x, y)`` pairs.
+        points: Sampled states the operator consumed, as ``(x, y)`` pairs. For a
+            ``seq`` overlay these are the target-region visits ReachRefine hulls.
         counter_points: Contrasting samples, non-empty only for a half-plane
             split, where they are the failed starts.
         normal: Half-plane normal, or ``None`` for the other kinds.
         offset: Half-plane offset, or ``None`` for the other kinds.
         added_edge: Vertex names of the structural edge OrRefine added, or
             ``None``.
+        avoid_points: Unsafe trajectory-tail states, as ``(x, y)`` pairs, that
+            AvoidRefine hulls and subtracts from the safe region. Non-empty only
+            for a ``seq`` overlay with at least one rollout that ended outside the
+            safe region, so an edge whose only sub-effect is ReachRefine keeps an
+            empty tuple.
 
     How:
         Stores primitive values only, so the overlay reloads from JSON and the
-        figure layer redraws the geometry without the original rollouts.
+        figure layer redraws the geometry without the original rollouts. Both
+        ``points`` and ``avoid_points`` are captured for a ``seq`` overlay, so the
+        figure can show both halves of the operator even when only one of them
+        changed the graph.
     """
 
     kind: str
@@ -88,6 +97,7 @@ class Overlay:
     normal: tuple[float, float] | None
     offset: float | None
     added_edge: tuple[str, str] | None
+    avoid_points: tuple[tuple[float, float], ...] = ()
 
 
 @dataclass(frozen=True)
@@ -102,12 +112,27 @@ class ScenarioReport:
         before: The pre-refinement edge's checkpoint series.
         after: The refined route's success series, the route product.
         overlay: Geometry for the overlay figure.
-        reference_before: The paper's before number from the scenario.
-        reference_after: The paper's after number from the scenario.
+        reference_before: The paper's before number from the scenario, or ``None``
+            when the paper gives none.
+        reference_after: The paper's after number from the scenario, or ``None``.
+        operator_refused: Whether the scenario's operator was attempted but
+            declined for lack of a witness; ``False`` when there was no operator
+            or the refinement succeeded.
+        satisfaction_before: Fraction of end-to-end episodes in which the
+            unrefined policy satisfies the original edge's specification (region
+            semantics, starts from the original source region), or ``None`` for an
+            older report.
+        satisfaction_after: The same fraction for the refined route run end to
+            end, judged against the original edge; equal to
+            ``satisfaction_before`` when nothing was refined.
 
     How:
         Bundles the two curves, the overlay inputs, and the paper's reference so
-        one JSON file per scenario carries everything the figures need.
+        one JSON file per scenario carries everything the figures need. The two
+        curves score the learner's goal-point task per edge (the paper's
+        reporting); the two satisfaction numbers score the original
+        specification, so a refinement cannot look better merely by sampling
+        easier starts or goals.
     """
 
     scenario: str
@@ -117,8 +142,11 @@ class ScenarioReport:
     before: tuple[Checkpoint, ...]
     after: tuple[Checkpoint, ...]
     overlay: Overlay
-    reference_before: float
-    reference_after: float
+    reference_before: float | None
+    reference_after: float | None
+    operator_refused: bool = False
+    satisfaction_before: float | None = None
+    satisfaction_after: float | None = None
 
 
 @dataclass(frozen=True)
@@ -227,6 +255,9 @@ def report_to_dict(report: ScenarioReport) -> dict:
         "overlay": _overlay_to_dict(report.overlay),
         "reference_before": report.reference_before,
         "reference_after": report.reference_after,
+        "operator_refused": report.operator_refused,
+        "satisfaction_before": report.satisfaction_before,
+        "satisfaction_after": report.satisfaction_after,
     }
 
 
@@ -253,6 +284,9 @@ def report_from_dict(payload: dict) -> ScenarioReport:
         overlay=_overlay_from_dict(payload["overlay"]),
         reference_before=payload["reference_before"],
         reference_after=payload["reference_after"],
+        operator_refused=bool(payload.get("operator_refused", False)),
+        satisfaction_before=payload.get("satisfaction_before"),
+        satisfaction_after=payload.get("satisfaction_after"),
     )
 
 
@@ -365,6 +399,7 @@ def _overlay_to_dict(overlay: Overlay) -> dict:
         "normal": list(overlay.normal) if overlay.normal is not None else None,
         "offset": overlay.offset,
         "added_edge": list(overlay.added_edge) if overlay.added_edge is not None else None,
+        "avoid_points": [list(point) for point in overlay.avoid_points],
     }
 
 
@@ -376,7 +411,8 @@ def _overlay_from_dict(payload: dict) -> Overlay:
 
     How:
         Restores the point tuples as floats and rebuilds the optional normal and
-        added edge when present.
+        added edge when present. ``avoid_points`` is read with a default, so a
+        record written before that field existed still loads.
 
     Returns:
         The rebuilt overlay.
@@ -390,4 +426,9 @@ def _overlay_from_dict(payload: dict) -> Overlay:
         normal=(float(normal[0]), float(normal[1])) if normal is not None else None,
         offset=payload["offset"],
         added_edge=(added_edge[0], added_edge[1]) if added_edge is not None else None,
+        avoid_points=tuple(
+            (float(x), float(y)) for x, y in payload.get("avoid_points", ())
+        ),
     )
+
+

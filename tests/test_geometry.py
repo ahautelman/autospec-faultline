@@ -91,6 +91,18 @@ def test_half_plane_partition_keeps_the_positive_mean():
     assert partition.evaluate(np.array([2.1, 2.1])) is False
 
 
+def test_half_plane_partition_separates_an_unbalanced_spread():
+    # The class means sit at x = 3.25 and x = 11.5, so their bisector (x = 7.375)
+    # would cut the positive start at x = 10 even though x = 10.5 separates them.
+    positive = [[0.0, 0.0], [1.0, 0.0], [2.0, 0.0], [10.0, 0.0]]
+    negative = [[11.0, 0.0], [12.0, 0.0]]
+
+    partition = half_plane_partition(positive, negative)
+
+    assert [partition.evaluate(np.array(point)) for point in positive] == [True] * 4
+    assert [partition.evaluate(np.array(point)) for point in negative] == [False] * 2
+
+
 def test_half_plane_partition_returns_none_when_means_coincide():
     assert half_plane_partition([[1.0, 1.0]], [[1.0, 1.0]]) is None
 

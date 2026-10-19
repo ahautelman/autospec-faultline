@@ -23,6 +23,10 @@ from faultline.spectrl.predicates import And, Box, Dims, Disc, Or, Predicate
 
 Bounds = tuple[np.ndarray, np.ndarray]
 
+# Rejection-sampling budget shared by the environment's start and goal sampler and
+# the refinement operators' check that a refined region can be sampled at all.
+SAMPLE_ATTEMPTS = 2000
+
 
 def region_bounds(predicate: Predicate, dims: Dims) -> Bounds | None:
     """Return the axis-aligned bounds of a region along ``dims``.
@@ -154,3 +158,31 @@ def _union_bounds(candidates: Sequence[Bounds | None]) -> Bounds | None:
     lower = np.min([bound[0] for bound in candidates], axis=0)
     upper = np.max([bound[1] for bound in candidates], axis=0)
     return lower, upper
+
+
+def sample_within(
+    region: Predicate, lower: np.ndarray, upper: np.ndarray, rng: np.random.Generator
+) -> np.ndarray | None:
+    """Rejection-sample one point of a region inside an axis-aligned box.
+
+    Args:
+        region: The predicate the point must satisfy.
+        lower: Lower corner of the box to draw from, one entry per coordinate.
+        upper: Upper corner of the box to draw from.
+        rng: The random generator to draw with, so the caller controls seeding.
+
+    How:
+        Draws up to :data:`SAMPLE_ATTEMPTS` uniform points in the box and returns
+        the first one inside ``region``. A region with no area inside the box (a
+        segment of a degenerate hull, or an empty intersection) is never hit, so
+        the caller learns it cannot be sampled instead of looping forever.
+
+    Returns:
+        A point inside ``region``, or ``None`` when no draw landed in it.
+    """
+    for _ in range(SAMPLE_ATTEMPTS):
+        point = rng.uniform(lower, upper)
+        if region.evaluate(point):
+            return point
+    return None
+

@@ -22,41 +22,24 @@ covered by the pytest suite.
 
 from __future__ import annotations
 
-import math
 import os
 from collections.abc import Mapping, Sequence
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
-from faultline.envs import Rooms9
 from faultline.experiments.overlays import build_overlay
+from faultline.experiments.progress import disable as disable_progress
 from faultline.experiments.records import (
     REFERENCE_STEP,
-    Checkpoint,
     Overlay,
     ScenarioReport,
     ScenarioSpread,
     SeedSummary,
     success_at,
 )
-from faultline.experiments.progress import disable as disable_progress
-from faultline.experiments.training import ReportSettings, TrainingRecord, train_with_checkpoints
+from faultline.experiments.training import ReportSettings, ScenarioTrainer
 from faultline.graph.abstract_graph import AbstractGraph, Edge
-from faultline.learners import CannotRefineError, EdgeEstimate, PPOEdgeLearner
-from faultline.refinement.candidates import (
-    add_candidate,
-    or_candidate,
-    past_candidate,
-    seq_candidate,
-)
-from faultline.refinement.operators import AVOID_TAIL_LENGTH
+from faultline.learners import PPOEdgeLearner
 from faultline.scenarios import SCENARIOS, Scenario
-
-_CANDIDATE_BUILDERS = {
-    "seq": seq_candidate,
-    "add": add_candidate,
-    "past": past_candidate,
-    "or": or_candidate,
-}
 
 # Environment variable that overrides the auto-sized worker-process pool.
 WORKERS_ENV = "FAULTLINE_WORKERS"
@@ -86,77 +69,6 @@ def source_edge(graph: AbstractGraph) -> Edge:
     return outgoing[0]
 
 
-class ScenarioTrainer:
-    """Trains a scenario's edges with checkpoints.
-
-    Args:
-        env: The training environment.
-        learner: The PPO learner the report drives.
-        seed: Training seed for this run.
-        settings: The global budget, rollout count, and checkpoint interval.
-
-    How:
-        Holds the training context so the pipeline can train any edge, and the
-        refined route, without threading the settings through every call.
-    """
-
-    def __init__(
-        self, env: Rooms9, learner: PPOEdgeLearner, seed: int, settings: ReportSettings
-    ) -> None:
-        self.env = env
-        self.learner = learner
-        self.seed = seed
-        self.settings = settings
-
-    def train(self, edge: Edge) -> TrainingRecord:
-        """Train one edge with checkpoints.
-
-        Args:
-            edge: The reach-avoid edge to train.
-
-        How:
-            Delegates to :func:`~faultline.experiments.training.train_with_checkpoints`
-            with this run's seed and settings.
-
-        Returns:
-            The edge's :class:`TrainingRecord`.
-        """
-        return train_with_checkpoints(self.learner, self.env, edge, self.seed, self.settings)
-
-    def refined_series(
-        self, graph: AbstractGraph, edge: Edge, estimate: EdgeEstimate, operator: str | None
-    ) -> tuple[Checkpoint, ...]:
-        """Train the refined route and return its product series.
-
-        Args:
-            graph: The graph the operator runs on.
-            edge: The bottleneck edge being refined.
-            estimate: The edge's final estimate, supplying the rollouts.
-            operator: The operator name, or ``None`` to skip refinement.
-
-        How:
-            Builds the operator's candidate through the same builder the loop
-            uses. An operator that refuses for lack of data yields an empty
-            series, so the caller keeps the before curve. Otherwise every route
-            edge is trained with checkpoints and the route product is returned.
-
-        Returns:
-            The refined route's success series, or ``()`` when nothing refined.
-        """
-        if operator is None:
-            return ()
-        try:
-            candidate = _CANDIDATE_BUILDERS[operator](graph, edge, estimate, AVOID_TAIL_LENGTH)
-        except CannotRefineError:
-            print(f"    refinement: {operator} refused (no successful trajectory)", flush=True)
-            return ()
-        route = candidate.routes[0]
-        names = [route[0].source.name, *(route_edge.target.name for route_edge in route)]
-        print(f"    refinement: {operator} route {' -> '.join(names)}", flush=True)
-        records = [self.train(route_edge) for route_edge in route]
-        return route_product(records)
-
-
 def run_reported_scenario(scenario: Scenario, seed: int, settings: ReportSettings) -> ScenarioReport:
     """Train one scenario's before and after curves at a single seed.
 
@@ -168,9 +80,13 @@ def run_reported_scenario(scenario: Scenario, seed: int, settings: ReportSetting
     How:
         Trains the bottleneck edge (the before curve), applies the scenario's
         AutoSpec operator to its final rollouts to get the refined route, then
-        trains the route (the after curve). The overlay captures the operator's
-        geometry from the same final rollouts. When nothing refines, the after
-        curve repeats the before curve.
+        trains the route (the after curve). Both the unrefined policy and the
+        refined route are then run end to end from the original source region and
+        judged against the original edge, giving the specification-level
+        satisfaction before and after. The overlay captures the operator's
+        geometry from the same final rollouts, and it records whether the
+        operator refused, so a zero after curve is readable. When nothing
+        refines, the after curve repeats the before curve.
 
     Returns:
         The :class:`ScenarioReport` for the scenario and seed.
@@ -190,9 +106,17 @@ def run_reported_scenario(scenario: Scenario, seed: int, settings: ReportSetting
     before = trainer.train(edge)
     overlay = build_overlay(operator, graph, edge, before.estimate) if operator else _empty_overlay()
     print(f"    stage 2/3: refine with {operator or 'none'}", flush=True)
-    after = trainer.refined_series(graph, edge, before.estimate, operator)
+    outcome = trainer.refined_series(graph, edge, before.estimate, operator)
+    satisfaction_before = trainer.satisfaction(edge, (edge,), (before,))
+    satisfaction_after = (
+        trainer.satisfaction(edge, outcome.route, outcome.records)
+        if outcome.route
+        else satisfaction_before
+    )
     print(
-        f"    stage 3/3: scenario done, bottleneck final={before.estimate.success_probability:.3f}",
+        f"    stage 3/3: scenario done, bottleneck final={before.estimate.success_probability:.3f} "
+        f"refused={outcome.refused} | spec satisfaction before={satisfaction_before:.3f} "
+        f"after={satisfaction_after:.3f}",
         flush=True,
     )
     return ScenarioReport(
@@ -201,10 +125,13 @@ def run_reported_scenario(scenario: Scenario, seed: int, settings: ReportSetting
         seed=seed,
         budget=settings.budget,
         before=before.checkpoints,
-        after=after or before.checkpoints,
+        after=outcome.series or before.checkpoints,
         overlay=overlay,
         reference_before=scenario.reference_before,
         reference_after=scenario.reference_after,
+        operator_refused=outcome.refused,
+        satisfaction_before=satisfaction_before,
+        satisfaction_after=satisfaction_after,
     )
 
 
@@ -464,29 +391,6 @@ def _spread(
             )
         )
     return ScenarioSpread(scenario.name, budget, tuple(summaries))
-
-
-def route_product(records: Sequence[TrainingRecord]) -> tuple[Checkpoint, ...]:
-    """Multiply the route edges' series stepwise.
-
-    Args:
-        records: The trained route edges, in route order.
-
-    How:
-        Aligns the series on their shared checkpoint steps and multiplies the
-        per-edge probabilities at each step, matching the loop's best-route
-        product for a two-hop route. A single-edge route is returned unchanged.
-
-    Returns:
-        The route's success series.
-    """
-    if len(records) == 1:
-        return records[0].checkpoints
-    tables = [{checkpoint.step: checkpoint.probability for checkpoint in record.checkpoints} for record in records]
-    common = sorted(set.intersection(*(set(table) for table in tables)))
-    return tuple(
-        Checkpoint(step, math.prod(table[step] for table in tables)) for step in common
-    )
 
 
 def _empty_overlay() -> Overlay:

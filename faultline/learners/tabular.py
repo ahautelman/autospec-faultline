@@ -150,13 +150,14 @@ class TabularLearner:
         states = [np.asarray(observation, dtype=float)]
         waypoints = self._plan(env, policy, states[0][:2], env.current_goal)
         if waypoints is None:
-            return Rollout(tuple(states), reached=False, safe=True)
-        reached, safe = self._follow(env, edge, states, waypoints)
-        return Rollout(tuple(states), reached=reached, safe=safe)
+            start_safe = bool(edge.safe.evaluate(states[0][:2]))
+            return Rollout(tuple(states), reached=False, safe=start_safe, final_safe=start_safe)
+        reached, safe, final_safe = self._follow(env, edge, states, waypoints)
+        return Rollout(tuple(states), reached=reached, safe=safe, final_safe=final_safe)
 
     def _follow(
         self, env: Any, edge: Edge, states: list[np.ndarray], waypoints: list[np.ndarray]
-    ) -> tuple[bool, bool]:
+    ) -> tuple[bool, bool, bool]:
         """Follow a waypoint route and record the visited states.
 
         Args:
@@ -169,12 +170,13 @@ class TabularLearner:
             Steps toward each waypoint until it is within tolerance. A blocked
             step, the step limit, or a termination stops the route. The safe
             flag tracks whether every visited state stayed inside the safe
-            region.
+            region; the final-safe flag tracks whether the last state did.
 
         Returns:
-            A ``(reached, safe)`` pair.
+            A ``(reached, safe, final_safe)`` triple.
         """
         safe = bool(edge.safe.evaluate(states[0][:2]))
+        final_safe = safe
         for waypoint in waypoints[:MAX_WAYPOINTS]:
             while True:
                 offset = waypoint - states[-1][:2]
@@ -187,18 +189,17 @@ class TabularLearner:
                 states.append(np.asarray(observation, dtype=float))
                 # The edge's safe region is the specification's; the environment may
                 # also carry an unmodelled trap (info["is_safe"]), which must count too.
-                safe = (
-                    safe
-                    and bool(edge.safe.evaluate(states[-1][:2]))
-                    and bool(info.get("is_safe", True))
+                final_safe = bool(edge.safe.evaluate(states[-1][:2])) and bool(
+                    info.get("is_safe", True)
                 )
+                safe = safe and final_safe
                 if info["is_success"]:
-                    return True, safe
+                    return True, safe, final_safe
                 if terminated or truncated:
-                    return False, safe
+                    return False, safe, final_safe
                 if np.allclose(before, states[-1][:2]):
-                    return False, safe
-        return bool(edge.target.region.evaluate(states[-1][:2])), safe
+                    return False, safe, final_safe
+        return bool(edge.target.region.evaluate(states[-1][:2])), safe, final_safe
 
     def _action(self, env: Any, offset: np.ndarray, distance: float) -> np.ndarray:
         """Build an action that moves toward a waypoint.

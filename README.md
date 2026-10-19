@@ -78,8 +78,8 @@ tests run under the `slow` marker; see [Run the tests](#run-the-tests).
 
 Core dependencies add NumPy and Gymnasium. The optional `interop` extra adds
 Stable-Baselines3 and scikit-learn for the real PPO learner, and the optional
-`reports` extra adds matplotlib for the 9-rooms report figures. The test suite
-runs without either extra; the PPO learner test and the figure test then skip.
+`reports` extra adds matplotlib for the figures. The test suite runs without either
+extra; the PPO learner tests and the figure tests then skip.
 
 ## Install
 
@@ -170,11 +170,92 @@ pins to `predict`. The run prints a stage banner per scenario, the edge regions 
 inspects, and one line per checkpoint with its success and rollout count.
 
 The run writes raw records to `reports/rooms9/data/` (`step1_<scenario>.json`
-checkpoint series and `step2_<scenario>.json` per-seed summaries) and figures to
-`reports/rooms9/`: a reference comparison at the 80k checkpoint, per-scenario
-learning curves over 0..200k, a geometric overlay of each operator's inputs and
-its refined region, and per-seed spread bars, each per scenario plus a combined
-figure.
+checkpoint series and `step2_<scenario>.json` per-seed summaries) and draws the
+figures into `reports/rooms9/figures/` through [`faultline/viz`](faultline/viz); see
+[Figures](#figures).
+
+## Run the full AutoSpec loop on the 9-rooms scenarios
+
+[`faultline/experiments/rooms9_autospec.py`](faultline/experiments/rooms9_autospec.py:1)
+is a runnable pipeline that runs Algorithm 1 end to end on the five 9-rooms
+scenarios. Where the report above applies each scenario's expected operator to a
+single bottleneck edge, this trains every edge, scans the graph in topological
+order, tries `SeqRefine`, `AddRefine`, `PastRefine`, and `OrRefine` on each weak
+edge, and commits the first candidate that clears the success threshold:
+
+```bash
+uv run --extra interop --extra reports python -m faultline.experiments.rooms9_autospec
+```
+
+Defaults mirror the report: a 200k-step budget per edge, 1000 evaluation
+rollouts, seeds 0-4, all five scenarios, and the threshold, budget, and rollouts
+from [`AutoSpecConfig`](faultline/refinement/loop.py:1). A run that does not need
+the learning curves skips the intermediate checkpoints, so only the final
+full-rollout evaluation runs per edge.
+
+Useful flags:
+
+- `--scenarios` and `--seeds` restrict the batch, for example
+  `--scenarios rooms9_trap --seeds 0 1`.
+- `--threshold`, `--budget`, `--rollouts`, and `--avoid-tail` set the
+  hyperparameters.
+- `--curves` records intermediate checkpoints, which the learning-curve figures
+  need; `--interval` and `--intermediate-rollouts` tune their cost. The other
+  figures are drawn either way, and the curve figures are skipped with a note when
+  the curves were not recorded.
+- `--workers` sets the process-pool size, `--resume` skips runs whose data file
+  already exists, and `--plot-only` rebuilds the table and figures from the
+  persisted data without retraining.
+- `--verbose` shows every worker checkpoint line instead of only the
+  `[done] scenario=... seed=... operators=... best_path ... (k/N)` progress
+  lines.
+- `--output` changes the output directory, which defaults to
+  `reports/rooms9_autospec/`.
+
+Every `(scenario, seed)` run shares one process pool, one task per edge
+training, so all scenarios and seeds train concurrently and a finished run is
+persisted immediately in `reports/rooms9_autospec/data/autospec_<scenario>_seed<k>.json`.
+When the batch finishes, the script prints and writes
+`reports/rooms9_autospec/summary.md`, a Markdown table with one row per scenario:
+the expected and matched operator, the mean best-path success before and after
+refinement, the paper's reference values, and the mean run time. It also draws the
+figures into `reports/rooms9_autospec/figures/`. The table fields come from
+[`faultline/experiments/autospec/`](faultline/experiments/autospec).
+
+## Figures
+
+Figures are drawn by [`faultline/viz`](faultline/viz) from the saved data, never from
+a live run, so any run can be redrawn without retraining. Both runs above draw their
+figures when they finish, and `--plot-only` redraws them. To draw from any data
+directory directly:
+
+```bash
+uv run --extra reports python -m faultline.viz reports/rooms9/data
+uv run --extra reports python -m faultline.viz reports/rooms9_autospec/data \
+    --scenario narrow_door --seed 0 1 --per-step --embed-caption
+```
+
+The command recognises each file by its contents (a full-loop report, a toy
+`step1_*` report, or a toy `step2_*` summary), writes PDF and PNG plus a
+`<name>.caption.txt` per figure into `<data>/../figures` (or `--output`), and prints a
+note for every figure the data cannot support. `--figures` picks the kinds,
+`--scenario` and `--seed` filter, `--per-step` adds one overlay panel per refinement
+step, and `--embed-caption` also prints the caption under the figure.
+
+| Figure | Shows | Needs |
+|---|---|---|
+| `overlay_<scenario>_seed<k>` | The room, each applied refinement (shrunk region, removed unsafe area, split boundary, new region, new edge), and the sampled rollouts before and after | Recorded geometry: a current full-loop report, or a toy `step1` report with its saved operator points |
+| `curves_<scenario>`, `curves_all` | Best-path success against training steps, with the seeds, the success threshold, and the paper's value at 80k | More than one checkpoint (`--curves` for the full loop) |
+| `seeds_<scenario>`, `seeds_all` | Each seed's success before and after at 80k and at the final budget | At least two seeds |
+| `reference_comparison` | The paper's numbers beside this run's mean at 80k | The paper's numbers, which the five catalogue scenarios carry |
+
+The room is drawn from the scenario's layout, so the overlay works for any room, and
+the annotations follow the shape of the edit, so several refinements on one room are
+all drawn. A toy `rooms9_report` run has no refined graph on disk; its overlay is
+rebuilt by replaying the real operator on the points the run saved
+([`faultline/viz/replay.py`](faultline/viz/replay.py:1)). Reports written before the
+figure data was recorded (schema version 1) still give curves, the comparison and the
+per-seed figure; their overlay is skipped.
 
 ## Run the linter
 
@@ -241,7 +322,8 @@ faultline/
   learners/           learner protocol, tabular learner, PPO learner
   refinement/         the Algorithm 1 loop and the four refinement operators
   scenarios/          the five 9-rooms validation scenarios and the runner
-  experiments/        the runnable 9-rooms report: checkpointed training and figures
+  experiments/        the runnable 9-rooms report and the full AutoSpec loop batch
+  viz/                figures drawn from saved run data, and `python -m faultline.viz`
 tests/                unit tests for the packages above
 plans/                the implementation plan
 reports/              generated report artifacts (figures and raw series)
@@ -271,7 +353,8 @@ Each module maps to a section of
 | [`faultline/scenarios/catalogue.py`](faultline/scenarios/catalogue.py:1) | 8, 11 | The five 9-rooms validation scenarios |
 | [`faultline/scenarios/runner.py`](faultline/scenarios/runner.py:1) | 3, 11 | The scenario runner and its per-edge report |
 | [`faultline/experiments/pipeline.py`](faultline/experiments/pipeline.py:1) | 3, 11 | The single-seed and multi-seed checkpointed pipeline |
-| [`faultline/experiments/figures.py`](faultline/experiments/figures.py:1) | 11 | Comparison, learning-curve, and spread figures |
+| [`faultline/viz/`](faultline/viz) | 11 | Room, overlay, learning-curve, per-seed, and paper-comparison figures |
+| [`faultline/refinement/trace.py`](faultline/refinement/trace.py:1) | 3 | What each committed refinement changed, recorded for the figures |
 
 ## How the pipeline works
 

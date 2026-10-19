@@ -97,6 +97,23 @@ class SeedDependentLearner:
         return EdgeEstimate(policy, tuple(self._rollouts(edge)))
 
 
+def seq_refined(edge, original_target):
+    """Return whether SeqRefine relabelled ``edge``'s target to a tighter region.
+
+    Args:
+        edge: The edge a scripted learner is asked to score.
+        original_target: The target region the edge had before refinement.
+
+    How:
+        SeqRefine relabels the target vertex in place (Algorithm 4), so the
+        refined edge keeps its endpoint names and is recognised by its region.
+
+    Returns:
+        ``True`` when the edge's target region differs from ``original_target``.
+    """
+    return edge.target.region != original_target
+
+
 def refinable_rollouts(edge):
     """Return one successful and one unsafe rollout for an edge.
 

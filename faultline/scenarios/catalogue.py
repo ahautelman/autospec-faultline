@@ -14,8 +14,10 @@ unreachable (OrRefine).
 
 from __future__ import annotations
 
-from collections.abc import Callable
-from dataclasses import dataclass
+import re
+from collections.abc import Callable, Mapping
+from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
 
 from faultline.envs import Rooms9, RoomsLayout, open_doors_except_sealed_rooms
 from faultline.envs.layout import (
@@ -27,8 +29,16 @@ from faultline.envs.layout import (
     long_corridor_doors,
     long_mixed_star_doors,
 )
+from faultline.envs.rooms.env import RoomsEnv
+from faultline.envs.rooms.catalogue import WORLD_BUILDERS, build_world, world_names
+from faultline.envs.rooms.generator import generate_world
 from faultline.graph.abstract_graph import AbstractGraph, Edge
 from faultline.spectrl.predicates import Box, Predicate
+
+if TYPE_CHECKING:
+    from faultline.envs.rooms.world import RoomsWorld
+
+_RANDOM_SCENARIO = re.compile(r"^rooms100_random_(\d+)$")
 
 START = Box((1.0, 1.0), (7.0, 7.0))
 GOAL = Box((17.0, 17.0), (23.0, 23.0))
@@ -44,7 +54,7 @@ TRAP_ROOMS: tuple[tuple[int, int], ...] = ((0, 2), (1, 2))
 # half-plane lands on the y = 16 wall.
 MIXED_START = Box((1.0, 9.0), (7.0, 23.0))
 # narrow_door: the goal sits in the top-left room, reached by going up the
-# far-right gap of the dividing wall. The environment hides an unescapable trap in
+# middle gap of the dividing wall. The environment hides an unescapable trap in
 # the narrow left doorway; the specification does not model it.
 NARROW_DOOR_GOAL = Box((1.0, 17.0), (7.0, 23.0))
 NARROW_DOOR_TRAP = Box((2.0, 15.0), (4.0, 17.0))
@@ -61,7 +71,7 @@ LONG_CORRIDOR_GOAL = Box((9.0, 9.0), (15.0, 15.0))
 
 @dataclass(frozen=True)
 class Scenario:
-    """One 9-rooms validation scenario from paper sections 8 and 11.
+    """One validation scenario, either a 9-rooms encoding or an n-rooms world.
 
     Args:
         name: Short identifier used in reports and test ids.
@@ -71,13 +81,24 @@ class Scenario:
             its source and target set.
         expected_operator: The loop operator the section 11 table expects for the
             symptom, or ``None`` when the scenario cannot isolate one operator.
-        reference_before: The table's per-edge success before refinement.
-        reference_after: The table's per-edge success after refinement.
+            The 100-rooms worlds leave it ``None`` and record per-edge
+            expectations in ``expected_operators`` instead.
+        reference_before: The table's per-edge success before refinement, or
+            ``None`` when the paper gives no reference number (100 rooms).
+        reference_after: The table's per-edge success after refinement, or
+            ``None`` when the paper gives no reference number (100 rooms).
         unsafe_region: Optional unescapable trap the environment hides from the
             specification; ``None`` means no trap.
         bottleneck: Optional selector returning the edge the report trains as the
             bottleneck when the graph fans out from its source; ``None`` means the
             single edge leaving the graph source.
+        world: The n-rooms world this scenario wraps, or ``None`` for a hand-built
+            9-rooms scenario. When present, :meth:`make_env` delegates to it so the
+            derived horizon and region boxes come from the world.
+        expected_operators: Per-edge operator expectations, as ``"A->B"`` to a
+            tuple of operator names. They are reported but never scored.
+        metadata: Free-form JSON-serialisable scenario metadata, copied into the
+            run report so the summary can show it.
 
     How:
         Holds geometry and metadata only. The graph factory defers construction so
@@ -90,21 +111,28 @@ class Scenario:
     layout: RoomsLayout
     build_graph: Callable[[], AbstractGraph]
     expected_operator: str | None
-    reference_before: float
-    reference_after: float
+    reference_before: float | None
+    reference_after: float | None
     unsafe_region: Predicate | None = None
     bottleneck: Callable[[AbstractGraph], Edge] | None = None
+    world: RoomsWorld | None = None
+    expected_operators: Mapping[str, tuple[str, ...]] = field(default_factory=dict)
+    metadata: Mapping[str, object] = field(default_factory=dict)
 
-    def make_env(self) -> Rooms9:
+    def make_env(self) -> RoomsEnv:
         """Build an environment over this scenario's layout.
 
         How:
-            Creates a fresh :class:`~faultline.envs.rooms9.Rooms9`; the runner sets
-            the abstract states for each edge as it trains.
+            An n-rooms scenario delegates to :meth:`RoomsWorld.make_env`, which
+            derives the step horizon from the room graph. A hand-built 9-rooms
+            scenario keeps its :class:`~faultline.envs.rooms9.Rooms9` default.
+            The runner sets the abstract states for each edge as it trains.
 
         Returns:
             A new environment instance.
         """
+        if self.world is not None:
+            return self.world.make_env()
         return Rooms9(layout=self.layout, unsafe_region=self.unsafe_region)
 
     def report_edge(self, graph: AbstractGraph) -> Edge:
@@ -153,7 +181,7 @@ def trap_goal() -> Scenario:
         name="trap_goal",
         description="Goal region includes sealed rooms, isolating ReachRefine.",
         layout=RoomsLayout(doors=open_doors_except_sealed_rooms(TRAP_ROOMS)),
-        build_graph=lambda: _single_edge(START, TRAP_GOAL),
+        build_graph=lambda: single_edge(START, TRAP_GOAL),
         expected_operator="seq",
         reference_before=0.15,
         reference_after=0.85,
@@ -165,12 +193,16 @@ def narrow_door() -> Scenario:
 
     How:
         Builds one open arena split only by the wall along ``y = 16``: a narrow
-        doorway on the left, a solid middle, and a gap on the far right. The goal
-        is the top-left room and the only safe route is the far-right gap. The
+        doorway on the left, a fully open middle edge, and a solid right edge. The
+        goal is the top-left room and the only safe route is the middle gap. The
         environment hides an unescapable trap in the narrow doorway, which the
         specification does not model (its safe region is the universe), so a policy
         that takes the short door gets stuck and AvoidRefine has unsafe trajectory
-        tails to block.
+        tails to block. Hiding the trap is a FaultLine design choice ("the spec is
+        missing a constraint"), not the paper's setup: the paper's Figure 8 writes
+        the avoid region into the specification, and its Algorithm 3 filter
+        ``ζ_i[-1] ∉ c`` only fires here because the learner also flags the trap
+        (see :func:`~faultline.refinement.operators.ended_unsafe`).
 
     Returns:
         The ``narrow_door`` scenario.
@@ -179,7 +211,7 @@ def narrow_door() -> Scenario:
         name="narrow_door",
         description="A narrow unsafe doorway beside the safe route (AvoidRefine).",
         layout=RoomsLayout(doors=_open_arena_doors()),
-        build_graph=lambda: _single_edge(START, NARROW_DOOR_GOAL),
+        build_graph=lambda: single_edge(START, NARROW_DOOR_GOAL),
         expected_operator="seq",
         reference_before=0.30,
         reference_after=0.75,
@@ -204,7 +236,7 @@ def long_corridor() -> Scenario:
         name="long_corridor",
         description="One edge spans the whole corridor, isolating AddRefine.",
         layout=RoomsLayout(doors=long_corridor_doors()),
-        build_graph=lambda: _single_edge(START, LONG_CORRIDOR_GOAL),
+        build_graph=lambda: single_edge(START, LONG_CORRIDOR_GOAL),
         expected_operator="add",
         reference_before=0.20,
         reference_after=0.90,
@@ -228,7 +260,7 @@ def mixed_start() -> Scenario:
         name="mixed_start",
         description="Start region straddles a sealed room, isolating PastRefine.",
         layout=RoomsLayout(doors=long_mixed_star_doors()),
-        build_graph=lambda: _single_edge(MIXED_START, GOAL),
+        build_graph=lambda: single_edge(MIXED_START, GOAL),
         expected_operator="past",
         reference_before=0.40,
         reference_after=0.80,
@@ -264,7 +296,7 @@ def blocked_two_path() -> Scenario:
     )
 
 
-def _single_edge(
+def single_edge(
     start_region: Predicate, goal_region: Predicate, safe: Predicate | None = None
 ) -> AbstractGraph:
     """Build a graph of one reach-avoid edge from START-like source to goal.
@@ -345,8 +377,8 @@ def _open_arena_doors() -> dict[WallKey, DoorInterval]:
     How:
         Opens every vertical wall and every ``y = 8`` wall across its full edge so
         those rooms merge into a single arena. The only wall left sits on
-        ``y = 16``: a narrow doorway in column 0, a solid middle, and a far-right
-        gap.
+        ``y = 16``: a narrow doorway in column 0 (the hidden trap), a fully open
+        column-1 edge, and a solid column-2 edge.
 
     Returns:
         The wall key to open interval mapping.
@@ -360,7 +392,7 @@ def _open_arena_doors() -> dict[WallKey, DoorInterval]:
         low, high = col * ROOM_SIZE, (col + 1) * ROOM_SIZE
         doors[("h", col, 0)] = (low, high)
     doors[("h", 0, 1)] = (2.0, 4.0)
-    doors[("h", 2, 1)] = (19.0, 23.0)
+    doors[("h", 1, 1)] = (1.0 * ROOM_SIZE, 2.0 * ROOM_SIZE)
     return doors
 
 
@@ -375,3 +407,47 @@ SCENARIOS: dict[str, Scenario] = {
         blocked_two_path(),
     )
 }
+
+
+def scenario_names() -> tuple[str, ...]:
+    """Return every named scenario the resolver accepts as a fixed name.
+
+    How:
+        Concatenates the five 9-rooms scenarios with the fixed n-rooms worlds.
+        Random paper-style worlds use the pattern ``rooms100_random_<seed>``,
+        which cannot be listed finitely, so the resolver handles them separately.
+
+    Returns:
+        The fixed names, 9-rooms first and then the n-rooms catalogue order.
+    """
+    return (*SCENARIOS, *world_names())
+
+
+def resolve_scenario(name: str) -> Scenario:
+    """Resolve a scenario name in a worker process without extra data.
+
+    Args:
+        name: A 9-rooms scenario name, a fixed n-rooms world name (``fig3``,
+            ``fig6``, ``random_seed0`` ...), or ``rooms100_random_<seed>``.
+
+    How:
+        Checks the 9-rooms catalogue first, then the fixed n-rooms catalogue, and
+        finally parses the random-world name and regenerates it from its seed. A
+        random world is a pure function of the seed, which is why only the name
+        crosses a process boundary.
+
+    Returns:
+        The resolved scenario, wrapped from a :class:`~faultline.envs.rooms.world.RoomsWorld`
+        when it is an n-rooms world.
+
+    Raises:
+        KeyError: If the name matches none of the three forms.
+    """
+    if name in SCENARIOS:
+        return SCENARIOS[name]
+    if name in WORLD_BUILDERS:
+        return build_world(name).to_scenario(name)
+    match = _RANDOM_SCENARIO.match(name)
+    if match is not None:
+        return generate_world(int(match.group(1))).to_scenario(name)
+    raise KeyError(f"Unknown scenario {name!r}")

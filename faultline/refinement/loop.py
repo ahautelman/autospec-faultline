@@ -23,6 +23,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from faultline.graph.abstract_graph import AbstractGraph, Edge
+from faultline.graph.snapshot import snapshot_graph
 from faultline.graph.semantics import best_path_product
 from faultline.learners.base import CannotRefineError, EdgeEstimate
 from faultline.learners.ppo import DEFAULT_BUDGET, DEFAULT_ROLLOUTS
@@ -34,6 +35,8 @@ from faultline.refinement.candidates import (
     seq_candidate,
 )
 from faultline.refinement.operators import AVOID_TAIL_LENGTH
+from faultline.refinement.trace import StepTrace, build_trace
+from faultline.refinement.trajectories import collect_step_samples
 
 # The paper's fixed operator order (section 3): the smallest structural change
 # first, the largest last. The loop commits the first candidate above threshold.
@@ -59,8 +62,10 @@ class AutoSpecConfig:
             run is reproducible even when a learner trains stochastically.
 
     How:
-        Holds the loop's hyperparameters. The defaults follow the paper: the
-        strict ``p = 0.99``, 1000 evaluation rollouts, and a 10-state avoid tail.
+        Holds the loop's hyperparameters. The defaults follow the paper's strict
+        ``p = 0.99`` and 1000 evaluation rollouts. The avoid tail defaults to
+        :data:`~faultline.refinement.operators.AVOID_TAIL_LENGTH` (2), a
+        deliberate deviation from the paper's 10 (section 4.3).
     """
 
     threshold: float = 0.99
@@ -83,6 +88,8 @@ class RefinementStep:
         before: The edge's success estimate before refinement.
         after: The committed replacement's score, or ``before`` when nothing was
             committed.
+        trace: What the committed operator changed in the graph and the samples
+            it was based on, or ``None`` when nothing was committed.
 
     How:
         Records the decision in primitive values, so a run can be reported or
@@ -95,6 +102,7 @@ class RefinementStep:
     operator: str | None
     before: float
     after: float
+    trace: StepTrace | None = None
 
 
 @dataclass(frozen=True)
@@ -362,8 +370,13 @@ def _refine_edge(
             continue
         score, candidate_cache = trainer.route_score(candidate, cache)
         if score > trainer.config.threshold:
+            trace = build_trace(
+                snapshot_graph(graph),
+                snapshot_graph(candidate.graph),
+                collect_step_samples(edge, estimate, trainer.config.avoid_tail_length),
+            )
             step = RefinementStep(
-                edge.source.name, edge.target.name, tuple(tried), name, before, score
+                edge.source.name, edge.target.name, tuple(tried), name, before, score, trace
             )
             return candidate.graph, trainer.align(candidate.graph, candidate_cache), step
     step = RefinementStep(edge.source.name, edge.target.name, tuple(tried), None, before, before)

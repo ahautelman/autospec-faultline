@@ -17,8 +17,14 @@ import pytest
 
 from faultline.learners import TabularLearner
 from faultline.refinement import AutoSpecConfig
-from faultline.scenarios import SCENARIOS, run_scenario
-from tests.loop_support import ScriptedLearner, blocked_rollouts, refinable_rollouts
+from faultline.scenarios import SCENARIOS, resolve_scenario, run_scenario
+from faultline.scenarios.catalogue import LONG_CORRIDOR_GOAL
+from tests.loop_support import (
+    ScriptedLearner,
+    blocked_rollouts,
+    refinable_rollouts,
+    seq_refined,
+)
 
 SEEDS = (0, 1, 2, 3, 4)
 # The planner's estimates are deterministic, so a relaxed threshold is enough to
@@ -82,14 +88,17 @@ def test_blocked_two_path_goal_has_two_parents():
 
 
 def test_narrow_door_layout_is_open_arena_with_one_wall():
-    """No dividers at x=8/x=16, no y=8 wall; the y=16 wall has door, solid, gap."""
+    """The y=16 wall has the narrow trap door, a fully open middle edge, and a solid right edge."""
     layout = SCENARIOS["narrow_door"].layout
     assert layout.is_open(("v", 0, 1), 12.0) is True
     assert layout.is_open(("v", 1, 1), 12.0) is True
     assert layout.is_open(("h", 0, 0), 4.0) is True
+    # The left doorway stays the narrow trap doorway.
     assert layout.is_open(("h", 0, 1), 3.0) is True
-    assert layout.is_open(("h", 1, 1), 12.0) is False
-    assert layout.is_open(("h", 2, 1), 21.0) is True
+    # The middle edge is fully open; the right edge is now solid.
+    assert layout.is_open(("h", 1, 1), 9.0) is True
+    assert layout.is_open(("h", 1, 1), 15.5) is True
+    assert layout.is_open(("h", 2, 1), 21.0) is False
     assert SCENARIOS["narrow_door"].unsafe_region is not None
 
 
@@ -125,6 +134,12 @@ def test_blocked_two_path_layout_winds_between_two_blocked_shortcuts():
     assert layout.is_open(("v", 1, 0), 4.0) is True
     assert layout.is_open(("h", 1, 1), 12.0) is True
     assert layout.is_open(("h", 1, 0), 12.0) is True
+    # The left and right column walls are open across their whole edge, not a
+    # centred gap, so an off-centre crossing passes.
+    assert layout.is_open(("h", 0, 0), 1.0) is True
+    assert layout.is_open(("h", 0, 1), 7.0) is True
+    assert layout.is_open(("h", 2, 0), 17.0) is True
+    assert layout.is_open(("h", 2, 1), 23.0) is True
     # Both direct shortcuts stay solid.
     assert layout.is_open(("v", 0, 0), 4.0) is False
     assert layout.is_open(("v", 1, 2), 20.0) is False
@@ -168,7 +183,7 @@ def test_tabular_operator_selection_is_stable_over_seeds(name, operator):
 
 def test_long_corridor_selects_add_with_a_capacity_learner():
     def probability(edge):
-        if "seq" in edge.source.name or "seq" in edge.target.name:
+        if seq_refined(edge, LONG_CORRIDOR_GOAL) and edge.target.name == "goal":
             return 0.2
         if "add" in edge.source.name or "add" in edge.target.name:
             return 0.99
@@ -203,3 +218,37 @@ def test_repeated_tabular_run_is_deterministic():
     assert first.operators == second.operators
     assert first.edges == second.edges
     assert first.best_path_after == second.best_path_after
+
+
+def test_resolver_handles_9_rooms_fixed_and_random_names():
+    """The resolver covers the three name forms a worker may receive."""
+    assert resolve_scenario("trap_goal") is SCENARIOS["trap_goal"]
+
+    for name in ("fig3", "fig6", "random_seed0"):
+        scenario = resolve_scenario(name)
+        assert scenario.name == name
+        assert scenario.world is not None
+        assert scenario.make_env().layout.world_size == 80.0
+
+    generated = resolve_scenario("rooms100_random_0")
+    assert generated.name == "rooms100_random_0"
+    assert generated.make_env().max_steps >= 200
+
+    with pytest.raises(KeyError, match="Unknown scenario"):
+        resolve_scenario("missing")
+
+
+def test_world_scenario_has_no_paper_reference_and_records_expectations():
+    """A 100-rooms scenario is unscored and carries its designed expectations."""
+    scenario = resolve_scenario("fig3")
+
+    assert scenario.reference_before is None
+    assert scenario.reference_after is None
+    assert scenario.expected_operator is None
+    assert scenario.expected_operators == {
+        "Start->M1": ("seq",),
+        "M1->M3": ("seq",),
+        "M2->M3": ("seq",),
+    }
+    assert scenario.metadata["world"]["design"].startswith("hand-designed Fig. 3")
+    assert scenario.make_env().max_steps == 200

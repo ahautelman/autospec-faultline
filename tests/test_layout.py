@@ -19,6 +19,8 @@ from faultline.envs import (
 from faultline.envs.layout import (
     WORLD_SIZE,
     blocked_two_path_doors,
+    layout_from_dict,
+    layout_to_dict,
     long_corridor_doors,
     long_mixed_star_doors,
 )
@@ -31,38 +33,38 @@ def test_default_doors_are_the_four_corridor_walls():
 
 def test_a_door_covers_only_its_centred_span():
     """A corridor door is open at the wall centre and solid near the corner."""
-    layout = RoomsLayout()
+    layout = RoomsLayout(default_doors())
     assert layout.is_open(("v", 0, 0), 4.0) is True
     assert layout.is_open(("v", 0, 0), 1.0) is False
 
 
 def test_a_wall_without_a_door_is_solid():
     """A wall absent from the door map is solid everywhere."""
-    layout = RoomsLayout()
+    layout = RoomsLayout(default_doors())
     assert layout.is_open(("v", 0, 1), 4.0) is False
 
 
 def test_move_through_a_door_is_not_blocked():
     """Crossing a wall at its door does not block the move."""
-    layout = RoomsLayout()
+    layout = RoomsLayout(default_doors())
     assert layout.segment_is_blocked([7.0, 4.0], [9.0, 4.0]) is False
 
 
 def test_move_through_a_solid_wall_is_blocked():
     """Crossing a wall away from its door blocks the move."""
-    layout = RoomsLayout()
+    layout = RoomsLayout(default_doors())
     assert layout.segment_is_blocked([7.0, 1.0], [9.0, 1.0]) is True
 
 
 def test_move_along_a_wall_is_not_blocked():
     """A move that stays on a wall line crosses no wall."""
-    layout = RoomsLayout()
+    layout = RoomsLayout(default_doors())
     assert layout.segment_is_blocked([8.0, 4.0], [8.0, 6.0]) is False
 
 
 def test_move_inside_a_room_is_not_blocked():
     """A move that stays inside one room crosses no wall."""
-    layout = RoomsLayout()
+    layout = RoomsLayout(default_doors())
     assert layout.segment_is_blocked([2.0, 2.0], [3.0, 3.0]) is False
 
 
@@ -181,8 +183,9 @@ def test_long_mixed_star_seals_the_top_row_and_opens_the_bottom_arm():
 
 
 def test_blocked_two_path_doors_are_the_eight_open_walls():
-    """The two-path room opens its two mid merges, two centre walls, four doorways."""
-    assert set(blocked_two_path_doors()) == {
+    """The two-path room opens its two mid merges, two centre walls, four column walls."""
+    doors = blocked_two_path_doors()
+    assert set(doors) == {
         ("v", 0, 2),
         ("v", 1, 0),
         ("h", 1, 1),
@@ -192,14 +195,22 @@ def test_blocked_two_path_doors_are_the_eight_open_walls():
         ("h", 2, 0),
         ("h", 2, 1),
     }
+    # The left and right column walls span their whole edge, merging the stacked rooms.
+    assert doors[("h", 0, 0)] == (0.0, 8.0)
+    assert doors[("h", 0, 1)] == (0.0, 8.0)
+    assert doors[("h", 2, 0)] == (16.0, 24.0)
+    assert doors[("h", 2, 1)] == (16.0, 24.0)
 
 
 def test_blocked_two_path_winds_from_start_to_goal():
     """The route climbs the left, drops the centre, and climbs the right column."""
     layout = RoomsLayout(doors=blocked_two_path_doors())
-    # Up the left column into MID1: (0, 0) - (0, 1) - (0, 2).
+    # Up the left column into MID1: (0, 0) - (0, 1) - (0, 2). The column is open
+    # across its whole edge, so an off-centre climb passes too.
     assert layout.segment_is_blocked([4.0, 4.0], [4.0, 12.0]) is False
     assert layout.segment_is_blocked([4.0, 12.0], [4.0, 20.0]) is False
+    assert layout.segment_is_blocked([1.0, 4.0], [1.0, 12.0]) is False
+    assert layout.segment_is_blocked([7.0, 12.0], [7.0, 20.0]) is False
     # Across MID1 into room (1, 2).
     assert layout.segment_is_blocked([4.0, 20.0], [12.0, 20.0]) is False
     # Down the centre into MID2: (1, 2) - (1, 1) - (1, 0).
@@ -207,9 +218,12 @@ def test_blocked_two_path_winds_from_start_to_goal():
     assert layout.segment_is_blocked([12.0, 12.0], [12.0, 4.0]) is False
     # Across MID2 into room (2, 0).
     assert layout.segment_is_blocked([12.0, 4.0], [20.0, 4.0]) is False
-    # Up the right column into GOAL: (2, 0) - (2, 1) - (2, 2).
+    # Up the right column into GOAL: (2, 0) - (2, 1) - (2, 2), also open across
+    # its whole edge.
     assert layout.segment_is_blocked([20.0, 4.0], [20.0, 12.0]) is False
     assert layout.segment_is_blocked([20.0, 12.0], [20.0, 20.0]) is False
+    assert layout.segment_is_blocked([17.0, 4.0], [17.0, 12.0]) is False
+    assert layout.segment_is_blocked([23.0, 12.0], [23.0, 20.0]) is False
 
 
 def test_blocked_two_path_blocks_both_direct_shortcuts():
@@ -219,3 +233,19 @@ def test_blocked_two_path_blocks_both_direct_shortcuts():
     assert layout.segment_is_blocked([7.0, 4.0], [9.0, 4.0]) is True
     # MID1 cannot step straight into GOAL.
     assert layout.segment_is_blocked([15.0, 20.0], [17.0, 20.0]) is True
+
+
+def test_layout_round_trips_a_ten_by_ten_grid():
+    """A 10x10 full-edge layout survives the JSON mapping unchanged."""
+    doors = open_doors_except_sealed_rooms((), room_size=8.0, rooms_per_side=10)
+    layout = RoomsLayout(doors, room_size=8.0, rooms_per_side=10)
+
+    restored = layout_from_dict(layout_to_dict(layout))
+
+    assert restored.room_size == 8.0
+    assert restored.rooms_per_side == 10
+    assert restored.world_size == 80.0
+    assert restored.doors == layout.doors
+    assert len(restored.doors) == 180
+    assert restored.is_open(("v", 4, 7), 7.5 * 8.0) is True
+    assert restored.is_open(("h", 2, 5), 2.5 * 8.0) is True

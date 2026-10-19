@@ -38,15 +38,24 @@ class Rollout:
         states: State vectors in time order.
         reached: Whether the episode reached the target region.
         safe: Whether the episode stayed inside the safe region throughout.
+        final_safe: Whether the final state was safe, or ``None`` when the
+            learner did not record it. AvoidRefine's paper filter is
+            ``ζ_i[-1] ∉ c``, so this is the flag that decides whether an episode
+            contributes a tail; ``safe`` remains the all-time flag used by
+            :attr:`success`.
 
     How:
-        Stores the trajectory and the two reach-avoid outcomes. The success
-        property combines them.
+        Stores the trajectory and the reach-avoid outcomes. The success property
+        combines ``reached`` and ``safe``. ``final_safe`` carries the
+        end-of-episode check separately, including any environment trap the
+        learner observed, because an episode can violate the safe region and
+        still be unable to recover (or, in other environments, recover later).
     """
 
     states: tuple[np.ndarray, ...]
     reached: bool
     safe: bool
+    final_safe: bool | None = None
 
     @property
     def success(self) -> bool:
@@ -60,6 +69,20 @@ class Rollout:
             ``True`` when the episode succeeded.
         """
         return self.reached and self.safe
+
+    @property
+    def ended_safe(self) -> bool:
+        """Return whether the episode's final state was safe.
+
+        How:
+            Uses :attr:`final_safe` when the learner recorded it; otherwise falls
+            back to the all-time :attr:`safe` flag, which is exact in
+            environments that terminate on a violation.
+
+        Returns:
+            ``True`` when the episode ended inside the safe region.
+        """
+        return self.safe if self.final_safe is None else self.final_safe
 
 
 @dataclass(frozen=True)

@@ -39,10 +39,13 @@ POINTS = [
 TRAJECTORY_LENGTH = 3
 
 
-def rollout(states, reached, safe):
-    """Build a rollout from a plain list of states and its two outcomes."""
+def rollout(states, reached, safe, final_safe=None):
+    """Build a rollout from a plain list of states and its outcomes."""
     return Rollout(
-        tuple(np.asarray(state, dtype=float) for state in states), reached=reached, safe=safe
+        tuple(np.asarray(state, dtype=float) for state in states),
+        reached=reached,
+        safe=safe,
+        final_safe=final_safe,
     )
 
 
@@ -89,6 +92,46 @@ def two_parent_graph():
     graph.source = start
     graph.target = goal
     return graph, blocked, sibling
+
+
+def cyclic_sibling_graph():
+    """Return a graph where one parent of ``goal`` reaches the blocked edge's source.
+
+    ``start -> goal`` is a sibling of the blocked ``mid -> goal``, but linking
+    ``mid -> start`` would close a cycle, so OrRefine may only route via ``alt``.
+    """
+    graph = AbstractGraph()
+    start = graph.add_vertex("start", START)
+    mid = graph.add_vertex("mid", MID)
+    alt = graph.add_vertex("alt", ALT)
+    goal = graph.add_vertex("goal", GOAL)
+    graph.add_edge(start, mid, SAFE)
+    blocked = graph.add_edge(mid, goal, SAFE)
+    graph.add_edge(start, goal, Universe())
+    graph.add_edge(alt, goal, Universe())
+    graph.source = start
+    graph.target = goal
+    return graph, blocked
+
+
+def existing_link_graph():
+    """Return a graph that already links the blocked edge's source to the sibling.
+
+    ``mid -> alt`` exists with the universe as its safe region before OrRefine
+    adds its own ``mid -> alt`` edge carrying the blocked edge's ``SAFE``.
+    """
+    graph = AbstractGraph()
+    start = graph.add_vertex("start", START)
+    mid = graph.add_vertex("mid", MID)
+    alt = graph.add_vertex("alt", ALT)
+    goal = graph.add_vertex("goal", GOAL)
+    graph.add_edge(start, mid, SAFE)
+    graph.add_edge(mid, alt, Universe())
+    blocked = graph.add_edge(mid, goal, SAFE)
+    graph.add_edge(alt, goal, Universe())
+    graph.source = start
+    graph.target = goal
+    return graph, blocked
 
 
 def trajectories():

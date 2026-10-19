@@ -1,355 +1,44 @@
-"""Wall, door, and region model for the 9-rooms environment.
+"""Back-compat shim for the old 9-rooms layout module.
 
-The world is a 3x3 grid of square rooms. Walls sit on the grid lines. A wall is
-solid unless a door opening covers the point where a path crosses it. Doors are
-open intervals along a wall's free coordinate.
-
-Wall keys:
-
-- ``("v", col, row)``: the vertical wall at ``x = (col + 1) * ROOM_SIZE``,
-  between room ``(col, row)`` and room ``(col + 1, row)``.
-- ``("h", col, row)``: the horizontal wall at ``y = (row + 1) * ROOM_SIZE``,
-  between room ``(col, row)`` and room ``(col, row + 1)``.
-
-The default layout opens one corridor from START to GOAL. It passes through MID
-and the two side rooms along the way. This gives a single intended route until a
-scenario adds or removes doors.
+The generic model lives in :mod:`faultline.envs.rooms.layout`; the 9-rooms
+constants and hand-built door maps live in :mod:`faultline.envs.rooms9`. This
+module re-exports both so existing imports keep working unchanged.
 """
 
-from __future__ import annotations
+from faultline.envs.rooms.layout import (
+    DoorInterval,
+    RoomsLayout,
+    WallKey,
+    layout_from_dict,
+    layout_to_dict,
+    open_doors_except_sealed_rooms,
+)
+from faultline.envs.rooms9 import (
+    DOOR_WIDTH,
+    ROOMS_PER_SIDE,
+    ROOM_SIZE,
+    WORLD_SIZE,
+    blocked_two_path_doors,
+    default_doors,
+    default_regions,
+    long_corridor_doors,
+    long_mixed_star_doors,
+)
 
-from collections.abc import Iterable
-
-import numpy as np
-
-from faultline.spectrl.predicates import Box
-
-ROOMS_PER_SIDE = 3
-ROOM_SIZE = 8.0
-WORLD_SIZE = ROOMS_PER_SIDE * ROOM_SIZE
-DOOR_WIDTH = 2.0
-
-# Each door is centred in the wall it cuts, so its offset from the wall's start
-# is half a room. The width then spans DOOR_WIDTH / 2 either side of the centre.
-_DOOR_CENTRE = ROOM_SIZE / 2.0
-
-WallKey = tuple[str, int, int]
-DoorInterval = tuple[float, float]
-
-_VERTICAL = "v"
-_HORIZONTAL = "h"
-
-
-def default_doors() -> dict[WallKey, DoorInterval]:
-    """Return the door set of the default 9-rooms corridor.
-
-    How:
-        Opens four walls that chain START ``(0, 0)`` to MID ``(1, 1)`` to GOAL
-        ``(2, 2)``, passing through rooms ``(1, 0)`` and ``(2, 1)``. Each door
-        is centred in its wall.
-
-    Returns:
-        A mapping from wall key to the open interval on that wall.
-    """
-    half = DOOR_WIDTH / 2.0
-    return {
-        ("v", 0, 0): (_DOOR_CENTRE - half, _DOOR_CENTRE + half),
-        ("h", 1, 0): (ROOM_SIZE + _DOOR_CENTRE - half, ROOM_SIZE + _DOOR_CENTRE + half),
-        ("v", 1, 1): (ROOM_SIZE + _DOOR_CENTRE - half, ROOM_SIZE + _DOOR_CENTRE + half),
-        ("h", 2, 1): (
-            2.0 * ROOM_SIZE + _DOOR_CENTRE - half,
-            2.0 * ROOM_SIZE + _DOOR_CENTRE + half,
-        ),
-    }
-
-
-def default_regions() -> dict[str, Box]:
-    """Return the named checkpoint regions of the 9-rooms grid.
-
-    How:
-        Places START in the bottom-left room, MID in the centre room, and GOAL
-        in the top-right room. Each region is a 6x6 box inset by one unit from
-        its room walls.
-
-    Returns:
-        A mapping from region name to its box predicate.
-    """
-    return {
-        "start": Box((1.0, 1.0), (7.0, 7.0)),
-        "mid": Box((9.0, 9.0), (15.0, 15.0)),
-        "goal": Box((17.0, 17.0), (23.0, 23.0)),
-    }
-
-
-def open_doors_except_sealed_rooms(
-    sealed_rooms: Iterable[tuple[int, int]],
-) -> dict[WallKey, DoorInterval]:
-    """Return a door map that opens every internal wall except sealed-room walls.
-
-    Args:
-        sealed_rooms: Grid coordinates ``(col, row)`` of the rooms to keep sealed.
-
-    How:
-        Walks every internal vertical and horizontal wall. A wall is opened
-        across its full room edge unless either adjacent room is sealed; a wall
-        next to a sealed room is left out of the map, so it stays solid and the
-        sealed rooms remain enclosed. The opening spans the whole edge rather
-        than a centred gap, which merges the open rooms into one area.
-
-    Returns:
-        A mapping from wall key to the full-edge open interval.
-    """
-    sealed = set(sealed_rooms)
-    doors: dict[WallKey, DoorInterval] = {}
-    for line_index in range(1, ROOMS_PER_SIDE):
-        for room in range(ROOMS_PER_SIDE):
-            low = room * ROOM_SIZE
-            high = low + ROOM_SIZE
-            left, right = (line_index - 1, room), (line_index, room)
-            if left not in sealed and right not in sealed:
-                doors[("v", line_index - 1, room)] = (low, high)
-            below, above = (room, line_index - 1), (room, line_index)
-            if below not in sealed and above not in sealed:
-                doors[("h", room, line_index - 1)] = (low, high)
-    return doors
-
-
-def long_corridor_doors() -> dict[WallKey, DoorInterval]:
-    """Return the door set of the paper's winding 9-rooms corridor.
-
-    How:
-        Opens the six internal walls the paper's long-corridor figure leaves
-        unblocked. The route from START in room ``(0, 0)`` climbs the left column
-        to room ``(0, 2)``, crosses into room ``(1, 2)``, and drops south into GOAL
-        in the centre room ``(1, 1)``. The far-right column is walled off from the
-        centre except at the bottom row, so that winding path is the single
-        intended route. Every opening spans its whole room edge, so the joined
-        rooms merge into one area rather than a centred gap.
-
-    Returns:
-        A mapping from wall key to the full-edge open interval.
-    """
-    size = ROOM_SIZE
-    return {
-        ("h", 0, 0): (0.0 * size, 1.0 * size),  # (0, 0) - (0, 1)
-        ("h", 0, 1): (0.0 * size, 1.0 * size),  # (0, 1) - (0, 2)
-        ("h", 1, 0): (1.0 * size, 2.0 * size),  # (1, 0) - (1, 1)
-        ("h", 1, 1): (1.0 * size, 2.0 * size),  # (1, 1) - (1, 2)
-        ("v", 0, 2): (2.0 * size, 3.0 * size),  # (0, 2) - (1, 2)
-        ("v", 1, 0): (0.0 * size, 1.0 * size),  # (1, 0) - (2, 0)
-    }
-
-
-def long_mixed_star_doors() -> dict[WallKey, DoorInterval]:
-    """Return the door set of the paper's long mixed star room.
-
-    How:
-        Opens the six internal walls the paper's long mixed star figure leaves
-        unblocked. The free area is a long zig-zag from START in room ``(0, 0)``:
-        it climbs into ``(0, 1)``, steps east into ``(1, 1)``, east again into
-        ``(2, 1)``, and finally climbs into GOAL in ``(2, 2)``. The bottom row
-        ``(0, 0) - (1, 0) - (2, 0)`` is a second, dead-end arm, and the two top-row
-        rooms ``(0, 2)`` and ``(1, 2)`` stay walled off. Every opening spans its
-        whole room edge, so the joined rooms merge into one area rather than a
-        centred gap.
-
-    Returns:
-        A mapping from wall key to the full-edge open interval.
-    """
-    size = ROOM_SIZE
-    return {
-        ("v", 0, 0): (0.0 * size, 1.0 * size),  # (0, 0) - (1, 0)
-        ("v", 1, 0): (0.0 * size, 1.0 * size),  # (1, 0) - (2, 0)
-        ("h", 0, 0): (0.0 * size, 1.0 * size),  # (0, 0) - (0, 1)
-        ("v", 0, 1): (1.0 * size, 2.0 * size),  # (0, 1) - (1, 1)
-        ("v", 1, 1): (1.0 * size, 2.0 * size),  # (1, 1) - (2, 1)
-        ("h", 2, 1): (2.0 * size, 3.0 * size),  # (2, 1) - (2, 2)
-    }
-
-
-def blocked_two_path_doors() -> dict[WallKey, DoorInterval]:
-    """Return the door set of the paper's blocked two-path room.
-
-    How:
-        Reproduces the paper's two-path figure. START sits in room ``(0, 0)``, the
-        left column climbs into MID1, the merged pair ``(0, 2) + (1, 2)``; the
-        centre column drops from MID1 through room ``(1, 1)`` into MID2, the merged
-        pair ``(1, 0) + (2, 0)``; and the right column climbs from MID2 into GOAL in
-        room ``(2, 2)``. Two of the four interior vertical walls -- START to the
-        bottom-middle room and MID1 to GOAL -- stay solid, so the direct edge that
-        would shorten each nominal route is blocked and only the winding path
-        realises both. The merged walls are fully open; the horizontal walls carry a
-        centred doorway.
-
-    Returns:
-        A mapping from wall key to the open interval on that wall.
-    """
-    size = ROOM_SIZE
-    half = DOOR_WIDTH / 2.0
-    centre = _DOOR_CENTRE
-    return {
-        # Full-edge merges: MID1 spans rooms (0, 2) and (1, 2); MID2 spans rooms
-        # (1, 0) and (2, 0).
-        ("v", 0, 2): (2.0 * size, 3.0 * size),  # (0, 2) - (1, 2)
-        ("v", 1, 0): (0.0 * size, 1.0 * size),  # (1, 0) - (2, 0)
-        # The centre column is open from MID1 down through (1, 1) into MID2.
-        ("h", 1, 1): (1.0 * size, 2.0 * size),  # (1, 1) - (1, 2)
-        ("h", 1, 0): (1.0 * size, 2.0 * size),  # (1, 0) - (1, 1)
-        # The left and right columns climb through centred doorways.
-        ("h", 0, 0): (0.0 * size + centre - half, 0.0 * size + centre + half),  # (0, 0) - (0, 1)
-        ("h", 0, 1): (0.0 * size + centre - half, 0.0 * size + centre + half),  # (0, 1) - (0, 2)
-        ("h", 2, 0): (2.0 * size + centre - half, 2.0 * size + centre + half),  # (2, 0) - (2, 1)
-        ("h", 2, 1): (2.0 * size + centre - half, 2.0 * size + centre + half),  # (2, 1) - (2, 2)
-    }
-
-
-def _room_index(value: float, room_size: float, rooms_per_side: int) -> int:
-    """Return the room index that contains one coordinate.
-
-    Args:
-        value: A coordinate along one axis.
-        room_size: Width of one room.
-        rooms_per_side: Number of rooms along the axis.
-
-    How:
-        Divides by the room size, floors to an integer, and clamps into range so
-        a point exactly on the outer edge still maps to a valid room.
-
-    Returns:
-        The room index in ``[0, rooms_per_side - 1]``.
-    """
-    index = int(value // room_size)
-    return max(0, min(rooms_per_side - 1, index))
-
-
-class RoomsLayout:
-    """The walls and doors of a square room grid.
-
-    Args:
-        doors: Wall key to open interval mapping. Defaults to the 9-rooms
-            corridor from :func:`default_doors`.
-        room_size: Width and height of one room.
-        rooms_per_side: Number of rooms along each axis.
-
-    How:
-        Stores the door map and the grid size. Wall and door queries derive from
-        these two values, so a caller can build a different grid by passing a
-        different door map.
-    """
-
-    def __init__(
-        self,
-        doors: dict[WallKey, DoorInterval] | None = None,
-        room_size: float = ROOM_SIZE,
-        rooms_per_side: int = ROOMS_PER_SIDE,
-    ) -> None:
-        self.room_size = float(room_size)
-        self.rooms_per_side = int(rooms_per_side)
-        self.world_size = self.room_size * self.rooms_per_side
-        self.doors = dict(default_doors()) if doors is None else dict(doors)
-
-    def room_of(self, point: np.ndarray) -> tuple[int, int]:
-        """Return the ``(col, row)`` room that contains a point.
-
-        Args:
-            point: A position ``(x, y)``.
-
-        How:
-            Maps each coordinate to a room index with :func:`_room_index`.
-
-        Returns:
-            The column and row of the containing room.
-        """
-        col = _room_index(float(point[0]), self.room_size, self.rooms_per_side)
-        row = _room_index(float(point[1]), self.room_size, self.rooms_per_side)
-        return col, row
-
-    def clamp(self, point: np.ndarray) -> np.ndarray:
-        """Return a copy of ``point`` clipped to the world bounds.
-
-        Args:
-            point: A position ``(x, y)``.
-
-        How:
-            Clips each coordinate into ``[0, world_size]`` and returns a fresh
-            float array.
-
-        Returns:
-            The clipped position.
-        """
-        clipped = np.asarray(point, dtype=float)[:2].copy()
-        np.clip(clipped, 0.0, self.world_size, out=clipped)
-        return clipped
-
-    def is_open(self, key: WallKey, coordinate: float) -> bool:
-        """Return whether a wall is open at one coordinate.
-
-        Args:
-            key: The wall key.
-            coordinate: The position along the wall's free axis.
-
-        How:
-            Looks up the wall's door interval. A missing wall entry means no
-            door, so the wall is solid.
-
-        Returns:
-            ``True`` when a door covers ``coordinate``.
-        """
-        interval = self.doors.get(key)
-        if interval is None:
-            return False
-        low, high = interval
-        return low <= coordinate <= high
-
-    def _crossing_is_open(self, axis: str, line_index: int, coordinate: float) -> bool:
-        """Return whether the wall at one grid line is open at a crossing.
-
-        Args:
-            axis: ``"v"`` for a vertical wall, ``"h"`` for a horizontal wall.
-            line_index: Index of the grid line, in ``[1, rooms_per_side - 1]``.
-            coordinate: Position along the wall's free axis.
-
-        How:
-            Converts the grid line and crossing coordinate into a wall key. For
-            a vertical wall the room row comes from the coordinate. For a
-            horizontal wall the room column comes from the coordinate.
-
-        Returns:
-            ``True`` when the crossed wall has a door at the crossing point.
-        """
-        room = _room_index(coordinate, self.room_size, self.rooms_per_side)
-        if axis == _VERTICAL:
-            key: WallKey = (_VERTICAL, line_index - 1, room)
-        else:
-            key = (_HORIZONTAL, room, line_index - 1)
-        return self.is_open(key, coordinate)
-
-    def segment_is_blocked(self, start: np.ndarray, end: np.ndarray) -> bool:
-        """Return whether a straight move crosses a solid wall.
-
-        Args:
-            start: Start position ``(x, y)``.
-            end: End position ``(x, y)``.
-
-        How:
-            For each internal grid line, checks whether the segment crosses it.
-            A crossing is strict, so a move along a wall is not blocked by that
-            wall. At each crossing it tests the wall key for a door. One solid
-            crossing blocks the move.
-
-        Returns:
-            ``True`` when the move hits a wall without a door.
-        """
-        x0, y0 = float(start[0]), float(start[1])
-        x1, y1 = float(end[0]), float(end[1])
-        for line_index in range(1, self.rooms_per_side):
-            line = line_index * self.room_size
-            if (x0 - line) * (x1 - line) < 0:
-                y_at = y0 + (y1 - y0) * (line - x0) / (x1 - x0)
-                if not self._crossing_is_open(_VERTICAL, line_index, y_at):
-                    return True
-            if (y0 - line) * (y1 - line) < 0:
-                x_at = x0 + (x1 - x0) * (line - y0) / (y1 - y0)
-                if not self._crossing_is_open(_HORIZONTAL, line_index, x_at):
-                    return True
-        return False
+__all__ = [
+    "DOOR_WIDTH",
+    "DoorInterval",
+    "ROOMS_PER_SIDE",
+    "ROOM_SIZE",
+    "RoomsLayout",
+    "WORLD_SIZE",
+    "WallKey",
+    "blocked_two_path_doors",
+    "default_doors",
+    "default_regions",
+    "layout_from_dict",
+    "layout_to_dict",
+    "long_corridor_doors",
+    "long_mixed_star_doors",
+    "open_doors_except_sealed_rooms",
+]

@@ -18,7 +18,6 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
-from faultline.experiments.figures import write_figures
 from faultline.experiments.pipeline import default_workers, run_multi_seed, run_single_seed
 from faultline.experiments.records import (
     ScenarioReport,
@@ -38,11 +37,13 @@ from faultline.experiments.training import (
     ReportSettings,
 )
 from faultline.scenarios import SCENARIOS, Scenario
+from faultline.viz.render import render_directory
 
 DEFAULT_OUTPUT = Path("reports/rooms9")
 DEFAULT_SEEDS = (0, 1, 2, 3, 4)
 STEP1_SEED = 0
 DATA_DIRNAME = "data"
+FIGURES_DIRNAME = "figures"
 
 
 @dataclass(frozen=True)
@@ -78,7 +79,7 @@ def build_parser() -> argparse.ArgumentParser:
         The configured :class:`argparse.ArgumentParser`.
     """
     parser = argparse.ArgumentParser(description="Run the 9-rooms reporting pipeline.")
-    parser.add_argument("--output", default=str(DEFAULT_OUTPUT), help="figure and data directory")
+    parser.add_argument("--output", default=str(DEFAULT_OUTPUT), help="data directory (data/) and figure directory (figures/)")
     parser.add_argument("--budget", type=int, default=DEFAULT_BUDGET, help="steps per edge")
     parser.add_argument("--rollouts", type=int, default=DEFAULT_ROLLOUTS, help="evaluation rollouts")
     parser.add_argument("--interval", type=int, default=DEFAULT_INTERVAL, help="steps between checkpoints")
@@ -108,8 +109,10 @@ def main(argv: Sequence[str] | None = None) -> None:
 
     How:
         Trains Step 1 (one seed per scenario) and Step 2 (several seeds) unless
-        ``--plot-only``, persisting each record under ``<output>/data``. Then loads
-        whatever data exists and writes every figure into ``<output>``.
+        ``--plot-only``, persisting each record under ``<output>/data``. Then draws
+        every figure the saved data supports into ``<output>/figures`` through
+        :mod:`faultline.viz`, which reads the data directory back, so a plot-only run
+        and a training run draw the same figures.
 
     Returns:
         None: the run writes files and prints a short summary.
@@ -146,11 +149,8 @@ def main(argv: Sequence[str] | None = None) -> None:
     else:
         reports = train_step1(context, args.steps)
         spreads = train_step2(context, args.seeds, args.steps, reports)
-    write_figures(reports, spreads, SCENARIOS, output)
-    print(
-        f"Wrote {len(reports)} reports, {len(spreads)} spreads, and figures to {output}",
-        flush=True,
-    )
+    render_directory(context.data, output / FIGURES_DIRNAME)
+    print(f"Wrote {len(reports)} reports and {len(spreads)} spreads to {context.data}", flush=True)
 
 
 def train_step1(context: ReportContext, steps: str) -> dict[str, ScenarioReport]:

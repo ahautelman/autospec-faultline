@@ -13,6 +13,7 @@ import pytest
 
 from faultline.learners import CannotRefineError
 from faultline.refinement import (
+    AVOID_TAIL_LENGTH,
     add_refine,
     avoid_refine,
     or_refine,
@@ -21,6 +22,7 @@ from faultline.refinement import (
     seq_refine,
 )
 from faultline.refinement.operators import _copied_edge
+from faultline.spectrl.predicates import Universe
 from tests.refinement_support import (
     MID,
     SAFE,
@@ -40,6 +42,31 @@ def test_reach_refine_intersects_the_region_with_the_visited_hull():
     assert refined.evaluate(np.array([0.5, 0.5])) is False
 
 
+def test_reach_refine_hulls_only_states_from_successful_rollouts():
+    rollouts = (
+        rollout([[1.0, 1.0], [2.0, 1.0], [1.0, 2.0]], reached=True, safe=True),
+        rollout([[0.5, 0.5], [1.9, 1.9]], reached=False, safe=True),
+    )
+
+    refined = reach_refine(MID, rollouts)
+
+    assert refined.evaluate(np.array([1.9, 1.9])) is False
+
+
+def test_reach_refine_raises_when_only_failed_rollouts_visit_the_region():
+    rollouts = (rollout([[0.5, 0.5], [1.5, 1.5]], reached=False, safe=True),)
+
+    with pytest.raises(CannotRefineError):
+        reach_refine(MID, rollouts)
+
+
+def test_reach_refine_refuses_a_target_hull_with_no_area():
+    rollouts = (rollout([[0.5, 0.5], [1.0, 1.0], [1.5, 1.8]], reached=True, safe=True),)
+
+    with pytest.raises(CannotRefineError):
+        reach_refine(MID, rollouts)
+
+
 def test_reach_refine_raises_when_no_state_visits_the_region():
     rollouts = (rollout([[0.5, 0.5], [0.6, 0.6]], reached=False, safe=True),)
     with pytest.raises(CannotRefineError):
@@ -48,9 +75,52 @@ def test_reach_refine_raises_when_no_state_visits_the_region():
 
 def test_avoid_refine_subtracts_the_unsafe_tail_hull():
     rollouts = (rollout([[0.5, 0.5], [2.6, 2.0], [2.0, 2.6]], reached=False, safe=False),)
-    refined = avoid_refine(SAFE, rollouts)
+    refined = avoid_refine(SAFE, rollouts, k=3)
     assert refined.evaluate(np.array([0.5, 0.5])) is False
     assert refined.evaluate(np.array([2.4, 0.1])) is True
+
+
+def test_avoid_refine_uses_a_two_state_tail_by_default():
+    # Deliberate deviation: the paper's section 4.3 experiment uses k = 10.
+    assert AVOID_TAIL_LENGTH == 2
+
+
+def test_avoid_refine_uses_only_the_last_k_states():
+    rollouts = (rollout([[0.1, 0.1], [0.2, 0.2], [2.6, 2.6]], reached=False, safe=False),)
+
+    refined = avoid_refine(SAFE, rollouts, k=2)
+
+    assert refined.evaluate(np.array([0.1, 0.1])) is True
+    assert refined.evaluate(np.array([2.0, 2.0])) is False
+
+
+def test_avoid_refine_ignores_an_episode_that_left_but_ended_safe():
+    rollouts = (
+        rollout(
+            [[0.5, 0.5], [2.6, 2.6], [1.0, 1.0]],
+            reached=False,
+            safe=False,
+            final_safe=True,
+        ),
+    )
+
+    with pytest.raises(CannotRefineError):
+        avoid_refine(SAFE, rollouts)
+
+
+def test_avoid_refine_uses_a_final_unsafe_flag_outside_the_region():
+    rollouts = (
+        rollout(
+            [[0.5, 0.5], [1.5, 1.5]],
+            reached=False,
+            safe=False,
+            final_safe=False,
+        ),
+    )
+
+    refined = avoid_refine(Universe(), rollouts)
+
+    assert refined.evaluate(np.array([1.5, 1.5])) is False
 
 
 def test_avoid_refine_raises_when_every_rollout_stayed_safe():
@@ -65,21 +135,23 @@ def test_avoid_refine_rejects_a_non_positive_tail_length():
         avoid_refine(SAFE, rollouts, k=0)
 
 
-def test_seq_refine_replaces_the_edge_with_a_tighter_two_hop_path():
+def test_seq_refine_relabels_the_target_and_safe_region_in_place():
     graph, edge = chain_graph()
     rollouts = (
-        rollout([[0.5, 0.5], [1.5, 1.5]], reached=True, safe=True),
+        rollout([[0.5, 0.5], [1.2, 1.8], [1.8, 1.8], [1.5, 1.2]], reached=True, safe=True),
         rollout([[0.5, 0.5], [2.6, 2.6]], reached=False, safe=False),
     )
+
     refined = seq_refine(graph, edge, estimate(rollouts))
-    assert len(refined.vertices) == len(graph.vertices) + 1
-    assert len(refined.edges) == len(graph.edges) + 1
-    assert len(graph.edges) == 2
-    vertex = next(candidate for candidate in refined.vertices if candidate.name.startswith("seq"))
-    assert vertex.region.evaluate(np.array([1.5, 1.5])) is True
-    assert vertex.region.evaluate(np.array([1.2, 1.2])) is False
-    new_edge = refined.predecessors(vertex)[0]
-    assert new_edge.safe.evaluate(np.array([0.5, 0.5])) is False
+
+    assert len(refined.vertices) == len(graph.vertices)
+    assert len(refined.edges) == len(graph.edges)
+    refined_edge, later = refined.edges
+    assert refined_edge.target is later.source
+    assert refined_edge.target.region.evaluate(np.array([1.5, 1.6])) is True
+    assert refined_edge.target.region.evaluate(np.array([1.1, 1.1])) is False
+    assert refined_edge.safe.evaluate(np.array([0.5, 0.5])) is False
+    assert graph.edges[0].target.region.evaluate(np.array([1.1, 1.1])) is True
 
 
 def test_seq_refine_raises_when_neither_region_can_move():
@@ -93,7 +165,8 @@ def test_add_refine_inserts_a_waypoint_between_the_edges():
     graph, edge = chain_graph()
     rollouts = (
         rollout([[0.2, 0.2], [1.2, 1.2], [1.6, 1.6]], reached=True, safe=True),
-        rollout([[0.8, 0.8], [1.4, 1.4], [1.9, 1.9]], reached=True, safe=True),
+        rollout([[0.8, 0.8], [1.4, 1.2], [1.9, 1.9]], reached=True, safe=True),
+        rollout([[0.5, 0.5], [1.3, 1.5], [1.9, 1.9]], reached=True, safe=True),
     )
     refined = add_refine(graph, edge, estimate(rollouts))
     assert len(refined.vertices) == len(graph.vertices) + 1
@@ -101,6 +174,17 @@ def test_add_refine_inserts_a_waypoint_between_the_edges():
     vertex = next(candidate for candidate in refined.vertices if candidate.name.startswith("add"))
     assert vertex.region.evaluate(np.array([1.3, 1.3])) is True
     assert vertex.region.evaluate(np.array([0.5, 0.5])) is False
+
+
+def test_add_refine_refuses_a_waypoint_hull_with_no_area():
+    graph, edge = chain_graph()
+    rollouts = (
+        rollout([[0.2, 0.2], [1.2, 1.2], [1.6, 1.6]], reached=True, safe=True),
+        rollout([[0.8, 0.8], [1.4, 1.4], [1.9, 1.9]], reached=True, safe=True),
+    )
+
+    with pytest.raises(CannotRefineError):
+        add_refine(graph, edge, estimate(rollouts))
 
 
 def test_add_refine_raises_without_a_successful_rollout():

@@ -22,6 +22,7 @@ from tests.loop_support import (
     SeedDependentLearner,
     blocked_rollouts,
     refinable_rollouts,
+    seq_refined,
 )
 from tests.refinement_support import GOAL, MID, SAFE, START, chain_graph, two_parent_graph
 
@@ -55,7 +56,7 @@ def test_commits_the_first_operator_that_clears():
     graph, _edge = chain_graph()
 
     def probability(edge):
-        if "seq" in edge.source.name or "seq" in edge.target.name:
+        if seq_refined(edge, MID):
             return 0.99
         if edge.source.name == "mid" and edge.target.name == "goal":
             return 0.99
@@ -72,10 +73,10 @@ def test_commits_add_when_seq_does_not_clear():
     graph, _edge = chain_graph()
 
     def probability(edge):
-        if "seq" in edge.source.name or "seq" in edge.target.name:
-            return 0.2
         if "add" in edge.source.name or "add" in edge.target.name:
             return 0.99
+        if seq_refined(edge, MID):
+            return 0.2
         if edge.source.name == "mid" and edge.target.name == "goal":
             return 0.99
         return 0.5
@@ -109,7 +110,7 @@ def test_relearns_only_edges_the_edit_changed():
     graph, _edge = chain_graph()
 
     def probability(edge):
-        if "seq" in edge.source.name or "seq" in edge.target.name:
+        if seq_refined(edge, MID):
             return 0.99
         if edge.source.name == "mid" and edge.target.name == "goal":
             return 0.95
@@ -119,14 +120,12 @@ def test_relearns_only_edges_the_edit_changed():
     run = run_autospec(graph, None, learner, AutoSpecConfig(threshold=THRESHOLD))
 
     assert run.steps[0].operator == "seq"
-    # The touched edge is trained once at the first pass, then replaced by the
-    # two replacement edges, which are trained once each.
-    assert learner.count("start", "mid") == 1
-    assert learner.count("start", "seq1") == 1
-    assert learner.count("seq1", "mid") == 1
-    # The untouched edge is trained once and never retrained by the commit.
-    assert learner.count("mid", "goal") == 1
-    assert len(learner.train_calls) == len(set(learner.train_calls))
+    # The touched edge is trained once at the first pass, then once more in its
+    # relabelled form (SeqRefine keeps the endpoints and tightens the regions).
+    assert learner.count("start", "mid") == 2
+    # Relabelling ``mid`` also changes the start region of ``mid -> goal``, so
+    # that edge is retrained exactly once by the commit.
+    assert learner.count("mid", "goal") == 2
 
 
 def test_align_reuses_cached_trainings_and_only_trains_new_edges():
@@ -203,7 +202,7 @@ def test_reports_best_path_product():
 
 def test_run_is_deterministic():
     def probability(edge):
-        if "seq" in edge.source.name or "seq" in edge.target.name:
+        if seq_refined(edge, MID):
             return 0.99
         if edge.source.name == "mid" and edge.target.name == "goal":
             return 0.95

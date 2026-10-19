@@ -1,27 +1,42 @@
-"""Overlay geometry for the 9-rooms report.
+"""Capture of what a refinement operator consumed, for the toy 9-rooms report.
 
-The overlay figure shows what a refinement operator saw and what it produced. This
-module derives both from the same inputs the operator consumes - the sampled
-trajectories on the bottleneck edge - so the figure never recomputes a hull or a
-hyperplane differently from the operator itself. The result is stored as plain
-points and line parameters, so the figure layer redraws it from JSON.
+The toy report stores the operator's inputs - the sampled trajectories on the bottleneck
+edge - as plain points and line parameters, so a figure can be redrawn from JSON. The
+figure code never recomputes a hull or a hyperplane: :mod:`faultline.viz.replay` feeds
+these points back through the real operator, so the figure shows exactly its result.
+
+``seq`` composes two sub-effects, ReachRefine on the target and AvoidRefine on the
+safe region, so its overlay captures both: the target visits and the tails of the
+episodes that ended outside the safe region. A scenario whose rollouts never end
+unsafe records an empty tail set and its figure is unaffected.
 """
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable
 
 import numpy as np
 
 from faultline.experiments.records import Overlay
-from faultline.geometry import convex_hull, half_plane_partition, intersect
+from faultline.geometry import half_plane_partition
 from faultline.graph.abstract_graph import AbstractGraph, Edge
 from faultline.learners import CannotRefineError, EdgeEstimate
-from faultline.refinement.operators import or_refine
-from faultline.spectrl.predicates import PLANAR_DIMS, HalfPlane, Predicate
+from faultline.refinement.operators import (
+    AVOID_TAIL_LENGTH,
+    ended_unsafe,
+    or_refine,
+    reach_witnesses,
+)
+from faultline.spectrl.predicates import PLANAR_DIMS
 
 
-def build_overlay(operator: str, graph: AbstractGraph, edge: Edge, estimate: EdgeEstimate) -> Overlay:
+def build_overlay(
+    operator: str,
+    graph: AbstractGraph,
+    edge: Edge,
+    estimate: EdgeEstimate,
+    avoid_tail_length: int = AVOID_TAIL_LENGTH,
+) -> Overlay:
     """Capture the geometry a refinement operator consumed and produced.
 
     Args:
@@ -29,12 +44,17 @@ def build_overlay(operator: str, graph: AbstractGraph, edge: Edge, estimate: Edg
         graph: The graph the operator ran on.
         edge: The bottleneck edge it refined.
         estimate: The edge's final estimate, whose rollouts it consumed.
+        avoid_tail_length: Trailing-state count AvoidRefine blocks per unsafe
+            episode; only a ``seq`` overlay captures those tails. Defaults to the
+            operator's own ``AVOID_TAIL_LENGTH``.
 
     How:
-        Dispatches on the operator. Reach and waypoint refinement store the
-        sampled states (target visits or successful midpoints); past refinement
-        stores the success and failure starts plus the fitted half-plane; OrRefine
-        is structural, so it stores the added edge's vertex names.
+        Dispatches on the operator. ``seq`` stores both of its sub-effects'
+        inputs - the target visits ReachRefine hulls and the tails of the episodes
+        that ended outside the safe region, which AvoidRefine subtracts; waypoint
+        refinement stores the successful midpoints; past refinement stores the
+        success and failure starts plus the fitted half-plane; OrRefine is
+        structural, so it stores the added edge's vertex names.
 
     Returns:
         The :class:`~faultline.experiments.records.Overlay` for the figure.
@@ -43,7 +63,7 @@ def build_overlay(operator: str, graph: AbstractGraph, edge: Edge, estimate: Edg
         ValueError: If ``operator`` is not one of the four names.
     """
     if operator == "seq":
-        return _reach_overlay(edge, estimate)
+        return _seq_overlay(edge, estimate, avoid_tail_length)
     if operator == "add":
         return _waypoint_overlay(estimate)
     if operator == "past":
@@ -53,59 +73,36 @@ def build_overlay(operator: str, graph: AbstractGraph, edge: Edge, estimate: Edg
     raise ValueError(f"Unknown refinement operator {operator!r}")
 
 
-def refined_region(
-    operator: str, edge: Edge, overlay: Overlay
-) -> Predicate | None:
-    """Rebuild the refined region an operator produced, for shading.
+def _seq_overlay(edge: Edge, estimate: EdgeEstimate, tail_length: int) -> Overlay:
+    """Capture both SeqRefine sub-effects' inputs.
 
     Args:
-        operator: Operator name (``"seq"``, ``"add"``, ``"past"``).
-        edge: The bottleneck edge that was refined.
-        overlay: The captured overlay inputs.
-
-    How:
-        Inverts the operator's geometry from the stored points or half-plane:
-        ReachRefine intersects the target with the visited hull, AddRefine
-        intersects the midpoint hull with the safe region, and PastRefine
-        intersects the source with the fitted half-plane. OrRefine has no region,
-        so it returns ``None``.
-
-    Returns:
-        The refined region predicate, or ``None`` when the operator is structural
-        or the overlay carries no usable geometry.
-    """
-    if operator == "seq" and overlay.points:
-        return intersect(edge.target.region, convex_hull(_to_states(overlay.points), PLANAR_DIMS))
-    if operator == "add" and overlay.points:
-        return intersect(convex_hull(_to_states(overlay.points), PLANAR_DIMS), edge.safe)
-    if operator == "past" and overlay.normal is not None and overlay.offset is not None:
-        partition = HalfPlane(np.asarray(overlay.normal), overlay.offset, PLANAR_DIMS)
-        return intersect(edge.source.region, partition)
-    return None
-
-
-def _reach_overlay(edge: Edge, estimate: EdgeEstimate) -> Overlay:
-    """Capture the target-region visits ReachRefine consumes.
-
-    Args:
-        edge: The bottleneck edge whose target region is filtered for.
+        edge: The bottleneck edge whose target and safe regions are refined.
         estimate: The edge's final estimate, supplying the rollouts.
+        tail_length: Trailing-state count AvoidRefine blocks per episode that
+            ended outside the safe region.
 
     How:
-        Scans every state of every rollout and keeps those inside the target
-        region, which is the same set ReachRefine hulls.
+        Keeps the target-region states that successful episodes visited, the set
+        ReachRefine hulls (:func:`~faultline.refinement.operators.reach_witnesses`),
+        and the last ``tail_length`` states of every rollout that ended
+        outside the safe region, the set AvoidRefine hulls and subtracts. The
+        end-of-episode filter is the paper's ``ζ_i[-1] ∉ c``; an episode that
+        merely crossed the boundary and recovered is not a witness. An edge with
+        no such rollout yields an empty tail set, so its figure shows only the
+        target half.
 
     Returns:
-        A ``hull`` overlay carrying those visited states.
+        A ``hull`` overlay carrying the target visits and the unsafe tails.
     """
-    region = edge.target.region
-    visited = (
+    visited = reach_witnesses(edge.target.region, estimate.rollouts)
+    tails = (
         state
         for rollout in estimate.rollouts
-        for state in rollout.states
-        if region.evaluate(state)
+        if ended_unsafe(rollout, edge.safe)
+        for state in rollout.states[-tail_length:]
     )
-    return Overlay("hull", _to_pairs(visited), (), None, None, None)
+    return Overlay("hull", _to_pairs(visited), (), None, None, None, _to_pairs(tails))
 
 
 def _waypoint_overlay(estimate: EdgeEstimate) -> Overlay:
@@ -200,18 +197,3 @@ def _to_pairs(states: Iterable[np.ndarray]) -> tuple[tuple[float, float], ...]:
         The ``(x, y)`` pairs.
     """
     return tuple((float(state[0]), float(state[1])) for state in states)
-
-
-def _to_states(points: Sequence[tuple[float, float]]) -> list[np.ndarray]:
-    """Turn ``(x, y)`` pairs back into planar state arrays.
-
-    Args:
-        points: The pairs to convert.
-
-    How:
-        Builds a float array per pair, the shape the convex-hull helper expects.
-
-    Returns:
-        The planar state arrays.
-    """
-    return [np.array(point, dtype=float) for point in points]

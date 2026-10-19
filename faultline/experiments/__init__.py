@@ -9,10 +9,8 @@ The training functions need the ``interop`` extra and the figures need the
 ``reports`` extra; the package itself imports neither, so importing it is cheap.
 """
 
-from faultline.experiments.figures import write_figures
 from faultline.experiments.pipeline import (
     default_workers,
-    route_product,
     run_multi_seed,
     run_reported_scenario,
     run_single_seed,
@@ -33,6 +31,7 @@ from faultline.experiments.training import (
     DEFAULT_ROLLOUTS,
     ReportSettings,
     TrainingRecord,
+    route_product,
     train_with_checkpoints,
 )
 
@@ -56,5 +55,4 @@ __all__ = [
     "source_edge",
     "success_at",
     "train_with_checkpoints",
-    "write_figures",
 ]
