@@ -60,6 +60,7 @@ code from scratch. The original authors' code stays in
 | Graph semantics and best-path product | Done | [`graph/semantics.py`](faultline/graph/semantics.py:1) |
 | 9-rooms layout and environment | Done | [`faultline/envs/`](faultline/envs) |
 | Learner protocol, tabular and PPO learners | Done | [`faultline/learners/`](faultline/learners) |
+| DiRL and LSTS graph-level learners | Done | [`dirl.py`](faultline/learners/dirl.py:1), [`lsts.py`](faultline/learners/lsts.py:1) |
 | The four refinement operators | Done | [`faultline/refinement/`](faultline/refinement), [`faultline/geometry/`](faultline/geometry) |
 | Algorithm 1 loop | Done | [`refinement/loop.py`](faultline/refinement/loop.py:1) |
 | 9-rooms validation scenarios and runner | Done | [`faultline/scenarios/`](faultline/scenarios) |
@@ -319,7 +320,7 @@ faultline/
   graph/              abstract graph, compiler, graph semantics
   geometry/           convex hulls, region algebra, and half-plane partitioning
   envs/               9-rooms layout and the gymnasium environment
-  learners/           learner protocol, tabular learner, PPO learner
+  learners/           learner protocol, tabular and PPO learners, DiRL and LSTS
   refinement/         the Algorithm 1 loop and the four refinement operators
   scenarios/          the five 9-rooms validation scenarios and the runner
   experiments/        the runnable 9-rooms report and the full AutoSpec loop batch
@@ -348,6 +349,10 @@ Each module maps to a section of
 | [`faultline/envs/rooms9.py`](faultline/envs/rooms9.py:1) | 8 | The point-mass environment with reach-avoid subgoals |
 | [`faultline/learners/tabular.py`](faultline/learners/tabular.py:1) | 3, 4 | The fast deterministic planner learner for tests |
 | [`faultline/learners/ppo.py`](faultline/learners/ppo.py:1) | 6.1 | The Stable-Baselines3 PPO edge learner |
+| [`faultline/learners/graph.py`](faultline/learners/graph.py:1) | 6 | The `GraphLearner` protocol and the `EdgeTraining` record |
+| [`faultline/learners/dirl.py`](faultline/learners/dirl.py:1) | 6 | DiRL: Dijkstra-style lazy edge learning |
+| [`faultline/learners/lsts.py`](faultline/learners/lsts.py:1) | 6 | LSTS: teacher-driven dynamic task sampling |
+| [`faultline/learners/start_distribution.py`](faultline/learners/start_distribution.py:1) | 6 | Environment wrapper that resets from an empirical start set |
 | [`faultline/refinement/operators.py`](faultline/refinement/operators.py:1) | 4 | The four refinement operators |
 | [`faultline/refinement/loop.py`](faultline/refinement/loop.py:1) | 3 | The Algorithm 1 refinement loop, config, and run record |
 | [`faultline/scenarios/catalogue.py`](faultline/scenarios/catalogue.py:1) | 8, 11 | The five 9-rooms validation scenarios |
@@ -378,6 +383,142 @@ One step follows the next.
    repeats.
 5. The graph semantics checks a trajectory. The best-path product gives the
    whole-task success.
+
+## DiRL and LSTS graph learners
+
+AutoSpec does not say how to learn the policies on the abstract graph. By
+default the loop trains **every** edge with the edge learner. DiRL and LSTS are
+two published strategies that decide **which edges to learn, in what order, and
+with how much training**. They sit above the edge learner (`PPOEdgeLearner` or
+`TabularLearner`) and below the refinement loop.
+
+```mermaid
+flowchart TB
+    L["Refinement loop (run_autospec)"] --> G["Graph learner: DiRL or LSTS"]
+    G --> E["Edge learner: train_edge, continue_edge, estimate_reach"]
+    E --> V["Environment (RoomsEnv)"]
+```
+
+Both implement the `GraphLearner` protocol in
+[`graph.py`](faultline/learners/graph.py:1):
+
+```python
+learn_graph(graph, env, edge_learner, budget, n_rollouts, seed) -> tuple[EdgeTraining, ...]
+```
+
+Each `EdgeTraining` holds an edge, its policy, and its `EdgeEstimate`. Edges the
+strategy never trained are absent from the result.
+
+### DiRL
+
+DiRL is from Jothimurugan et al., *Compositional Reinforcement Learning from
+Logical Specifications*, NeurIPS 2021. It runs Dijkstra's algorithm over the
+abstract graph and learns edges lazily.
+
+1. Give the source vertex cost 0 and every other vertex cost infinity.
+2. Pick the unprocessed vertex with the lowest cost. Stop when that vertex is
+   the target, or when none is reachable.
+3. Train and evaluate every edge that leaves that vertex. The edge cost is
+   `-log(p)`, where `p` is the edge's success probability. A floor of `1e-12`
+   on `p` keeps the cost finite.
+4. If the path through this edge is cheaper than the best known path to the
+   edge's target, record it. Dijkstra's shortest path with these costs is the
+   path with the highest product of success probabilities.
+
+The key idea is the **induced start distribution**. An edge `u -> v` is trained
+from where the best path reached `u`, not from anywhere in `u`'s region. DiRL
+keeps the end positions of the successful rollouts of the chosen incoming edge.
+It approximates the distribution at the target vertex by these positions. The
+outgoing edges of that vertex then train from them. The source vertex has no
+incoming edge, so it trains from its own region.
+
+[`StartDistributionWrapper`](faultline/learners/start_distribution.py:1)
+implements this. On each reset it draws one stored position and passes it to the
+environment as `options["start"]`.
+
+DiRL only trains edges whose source vertex it processed. Edges behind a vertex
+that the search never reached stay untrained. Every trained edge gets the full
+`budget`.
+
+### LSTS
+
+LSTS is *Logical Specifications-guided Dynamic Task Sampling*. A **teacher**
+splits one training budget across several **tasks**, which are the edges of the
+graph. The student is the edge learner.
+
+1. Keep only edges that lie on some path to the target. Dead ends never get
+   training.
+2. Start with the edges that leave the source as the **active** set.
+3. Each round, the teacher picks one active edge:
+   - An edge that was never picked goes first, in name order.
+   - Otherwise, with probability `epsilon` it picks a random active edge.
+   - Otherwise it picks the active edge with the highest Q-value.
+4. The student trains that edge for one chunk of `chunk_size` steps. The first
+   chunk calls `train_edge`. Later chunks call `continue_edge`, which keeps the
+   same network and optimiser state.
+5. Evaluate the edge with `n_rollouts` rollouts. Update its Q-value:
+   `Q <- alpha * score + (1 - alpha) * Q`.
+6. An edge **converges** when its success is at least `threshold` and it moved
+   by less than `tolerance` since its previous evaluation. A converged edge
+   leaves the active set. The edges that leave its target vertex join it.
+7. Stop when the total budget is spent, when no edge is active, or when an edge
+   that reaches the target converges.
+
+| Parameter | Default | Meaning |
+| --- | --- | --- |
+| `epsilon` | 0.2 | Chance of a random pick instead of the best Q-value |
+| `alpha` | 0.1 | Weight of the newest score in the Q-value |
+| `threshold` | 0.99 | Success needed before an edge can converge |
+| `tolerance` | 0.01 | Largest score change that still counts as stable |
+| `chunk_size` | 5000 | Environment steps per teacher round |
+| `max_interactions` | `None` | Total step budget; `None` uses the loop's `budget` |
+
+LSTS needs an edge learner with `continue_edge`. `PPOEdgeLearner` has it.
+`TabularLearner` does not, so LSTS rejects it with a `TypeError`.
+
+### How they differ
+
+| | Default loop | DiRL | LSTS |
+| --- | --- | --- | --- |
+| Edges trained | All | Only edges leaving processed vertices | Active edges on a path to the target |
+| Budget per edge | Full `budget` | Full `budget` | Chunks from one shared budget |
+| Start states | The edge's source region | Where the best path arrived | The edge's source region |
+| Needs | `train_edge`, `estimate_reach` | Same | Also `continue_edge` |
+
+### Use them with the AutoSpec loop
+
+Pass a graph learner to `run_autospec` or `run_scenario`:
+
+```python
+from faultline.learners import DiRL, LSTS, PPOEdgeLearner
+from faultline.refinement import AutoSpecConfig, run_autospec
+
+run = run_autospec(
+    graph,
+    env,
+    PPOEdgeLearner(),
+    AutoSpecConfig(),
+    graph_learner=DiRL(),  # or LSTS(chunk_size=5_000)
+)
+```
+
+With a graph learner, the loop changes in three ways.
+
+- It learns the initial graph with `learn_graph` instead of training every edge.
+- An edge the graph learner skipped has no policy. Algorithm 1 treats its
+  policy as null. The refinement scan skips it. `initial_edge_success` records
+  `None` for it, and the final record uses `0.0`.
+- After a refinement commits, the loop runs the graph learner again on the new
+  graph. It does not train the new edges one by one, because the graph learner
+  chooses which of them to learn.
+
+Without a graph learner, nothing changes.
+
+To try DiRL without the PPO extra, run
+`PYTHONPATH=. uv run python scripts/small_smoke_dirl.py`. The script is at
+[`scripts/small_smoke_dirl.py`](scripts/small_smoke_dirl.py:1). It uses the
+tabular learner on the `blocked_two_path` scenario and prints each learned
+edge's success probability.
 
 ## Fault taxonomy
 

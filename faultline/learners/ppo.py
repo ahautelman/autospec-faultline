@@ -243,6 +243,38 @@ class PPOEdgeLearner:
         success = sum(1 for rollout in rollouts if rollout.success) / n_rollouts
         return EdgeEstimate(success, tuple(rollouts))
 
+    def continue_edge(
+        self,
+        env: Any,
+        edge: Edge,
+        policy: Any,
+        budget: int,
+        seed: int | None = None,
+    ) -> Any:
+        """Continue training an existing PPO policy for one edge.
+
+        Args:
+            env: The environment, which implements ``set_abstract_states``.
+            edge: The reach-avoid edge the policy was trained on.
+            policy: The Stable-Baselines3 model returned by :meth:`train_edge`.
+            budget: Further training steps to run.
+            seed: Unused; the model keeps the seed it was built with. Accepted so
+                the signature matches :meth:`train_edge`.
+
+        How:
+            LSTS hands out training in small chunks across several edges. This
+            re-points the environment at the edge, rebinds it to the model, and
+            learns without resetting the step counter, so the network and
+            optimiser state carry over between chunks.
+
+        Returns:
+            The same model, trained further.
+        """
+        env.set_abstract_states(edge.source.region, edge.target.region, edge.safe)
+        policy.set_env(env)
+        policy.learn(total_timesteps=int(budget), reset_num_timesteps=False)
+        return policy
+
 
 def run_episode(
     env: Any,

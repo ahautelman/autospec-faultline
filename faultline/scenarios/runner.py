@@ -77,7 +77,10 @@ class ScenarioResult:
 
 
 def run_scenario(
-    scenario: Scenario, learner: Any, config: AutoSpecConfig | None = None
+    scenario: Scenario,
+    learner: Any,
+    config: AutoSpecConfig | None = None,
+    graph_learner: Any | None = None,
 ) -> ScenarioResult:
     """Run one scenario through the Algorithm 1 loop.
 
@@ -86,6 +89,8 @@ def run_scenario(
         learner: The spec-guided RL backend that trains and estimates edges.
         config: Run configuration; defaults to :class:`AutoSpecConfig`, so the
             paper's threshold, budget, and rollout count apply.
+        graph_learner: Optional DiRL or LSTS instance that chooses which edges to
+            learn; ``None`` trains every edge.
 
     How:
         Builds a fresh graph, runs the loop over a fresh environment, then maps the
@@ -102,14 +107,16 @@ def run_scenario(
     """
     graph = scenario.build_graph()
     active_config = config if config is not None else AutoSpecConfig()
-    run = run_autospec(graph, scenario.make_env(), learner, active_config)
+    run = run_autospec(
+        graph, scenario.make_env(), learner, active_config, graph_learner
+    )
     steps = {(step.source, step.target): step for step in run.steps}
     probabilities = _initial_probabilities(graph, run.initial_edge_success)
     edges = tuple(
         EdgeOutcome(
             outcome.source,
             outcome.target,
-            outcome.probability,
+            outcome.probability or 0.0,
             _after_for(outcome, steps),
         )
         for outcome in run.initial_edge_success
@@ -148,7 +155,7 @@ def _initial_probabilities(
     if len(initial) != len(graph.edges):
         raise ValueError(f"Got {len(initial)} initial estimates for {len(graph.edges)} edges")
     paired = zip(graph.edges, initial, strict=True)
-    return {edge: estimate.probability for edge, estimate in paired}
+    return {edge: estimate.probability or 0.0 for edge, estimate in paired}
 
 
 def _after_for(outcome: EdgeSuccess, steps: dict[tuple[str, str], RefinementStep]) -> float:
@@ -166,4 +173,4 @@ def _after_for(outcome: EdgeSuccess, steps: dict[tuple[str, str], RefinementStep
         The edge's success estimate after refinement.
     """
     step = steps.get((outcome.source, outcome.target))
-    return step.after if step is not None else outcome.probability
+    return step.after if step is not None else (outcome.probability or 0.0)

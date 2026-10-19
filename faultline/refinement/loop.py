@@ -121,7 +121,7 @@ class EdgeSuccess:
 
     source: str
     target: str
-    probability: float
+    probability: float | None
 
 
 @dataclass(frozen=True)
@@ -262,12 +262,38 @@ class _EdgeTrainer:
             best = max(best, product)
         return best, working
 
+    def from_graph_learner(self, graph: AbstractGraph, graph_learner: Any) -> dict:
+        """Run DiRL or LSTS and return the edges it learned as a training cache.
+
+        Args:
+            graph: The graph to learn over.
+            graph_learner: A graph-level learner with a ``learn_graph`` method.
+
+        Returns:
+            A cache keyed by :func:`_edge_key`. Edges the learner skipped are
+            absent.
+        """
+        results = graph_learner.learn_graph(
+            graph=graph,
+            env=self.env,
+            edge_learner=self.learner,
+            budget=self.config.budget,
+            n_rollouts=self.config.n_rollouts,
+            seed=self.config.seed,
+        )
+
+        return {
+            _edge_key(result.edge): _Training(policy=result.policy, estimate=result.estimate)
+            for result in results
+        }
+
 
 def run_autospec(
     graph: AbstractGraph,
     env: Any,
     learner: Any,
     config: AutoSpecConfig | None = None,
+    graph_learner: Any | None = None,
 ) -> AutoSpecRun:
     """Run the Algorithm 1 refinement loop once.
 
@@ -277,6 +303,11 @@ def run_autospec(
             gymnasium interface.
         learner: The spec-guided RL backend that trains and estimates edges.
         config: Run configuration; defaults to :class:`AutoSpecConfig`.
+        graph_learner: Optional graph-level strategy, :class:`~faultline.learners.DiRL`
+            or :class:`~faultline.learners.LSTS`, that chooses which edges to
+            learn. ``None`` trains every edge. Edges it leaves unlearned have no
+            estimate (``None`` in the initial record, ``0.0`` in the final one) and
+            are skipped by the refinement scan, as in Algorithm 1.
 
     How:
         Trains every edge, then scans the edges in topological order. A weak edge
@@ -297,27 +328,68 @@ def run_autospec(
     active_config = config if config is not None else AutoSpecConfig()
     trainer = _EdgeTrainer(env, learner, active_config)
     working = graph.copy()
-    cache = trainer.align(working, {})
+
+    if graph_learner is None:
+        cache = trainer.align(working, {})
+    else:
+        cache = trainer.from_graph_learner(working, graph_learner)
     initial_edge_success = tuple(
         EdgeSuccess(
             edge.source.name,
             edge.target.name,
-            cache[_edge_key(edge)].estimate.success_probability,
+            (
+                cache[_edge_key(edge)].estimate.success_probability
+                if _edge_key(edge) in cache
+                else None
+            ),
         )
         for edge in working.edges
     )
     steps = []
     for template in _ordered_edges(working):
-        edge = _locate(working, template.source.name, template.target.name)
+        edge = _locate(
+            working,
+            template.source.name,
+            template.target.name,
+        )
+
         if edge is None:
             continue
-        estimate = cache[_edge_key(edge)].estimate
+
+        key = _edge_key(edge)
+
+        # Algorithm 1: π_e is Null when the underlying spec-guided
+        # learner did not learn this edge.
+        if key not in cache:
+            continue
+
+        estimate = cache[key].estimate
+
         if estimate.success_probability >= active_config.threshold:
             continue
-        working, cache, step = _refine_edge(working, edge, estimate, cache, trainer)
+
+        working, cache, step = _refine_edge(
+            working,
+            edge,
+            estimate,
+            cache,
+            trainer,
+            align=graph_learner is None,
+        )
         steps.append(step)
+
+        # The graph learner decides which edges of the refined graph to learn,
+        # so rerun it instead of training every new edge.
+        if step.operator is not None and graph_learner is not None:
+            cache = trainer.from_graph_learner(working, graph_learner)
+
     probabilities = {
-        edge: cache[_edge_key(edge)].estimate.success_probability for edge in working.edges
+        edge: (
+            cache[_edge_key(edge)].estimate.success_probability
+            if _edge_key(edge) in cache
+            else 0.0
+        )
+        for edge in working.edges
     }
     edge_success = tuple(
         EdgeSuccess(edge.source.name, edge.target.name, probabilities[edge])
@@ -339,6 +411,7 @@ def _refine_edge(
     estimate: EdgeEstimate,
     cache: dict,
     trainer: _EdgeTrainer,
+    align: bool = True,
 ) -> tuple[AbstractGraph, dict, RefinementStep]:
     """Try the operators in order and commit the first that clears the threshold.
 
@@ -348,6 +421,8 @@ def _refine_edge(
         estimate: The edge's current estimate, supplying the rollouts.
         cache: Trainings keyed by :func:`_edge_key`.
         trainer: The trainer that scores each candidate.
+        align: Whether to train every edge the committed graph adds. A graph
+            learner passes ``False``, since it relearns the refined graph itself.
 
     How:
         Builds candidates in the paper's fixed order. An operator that refuses for
@@ -378,7 +453,9 @@ def _refine_edge(
             step = RefinementStep(
                 edge.source.name, edge.target.name, tuple(tried), name, before, score, trace
             )
-            return candidate.graph, trainer.align(candidate.graph, candidate_cache), step
+            if align:
+                candidate_cache = trainer.align(candidate.graph, candidate_cache)
+            return candidate.graph, candidate_cache, step
     step = RefinementStep(edge.source.name, edge.target.name, tuple(tried), None, before, before)
     return graph, cache, step
 
