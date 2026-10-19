@@ -100,3 +100,12 @@ unrefined (F1 0) < trivializer (removal 1, retention < 0.2, F1 < 0.3) < oracle (
 only the loop's operator tuple, restores it, is deterministic in its rng and shuffles the order of tries; `evaluate_repair` is
 deterministic. The loop and learners are untouched. Limits: `random_operator` patches a module global, so run one per
 process; `oracle` for M4/M5 is the gold graph, not an operator-limited repair.
+
+## Step 8 status (runner, in progress)
+Cleanups done: `HiddenHazardRooms9` retired (overwide case uses the physical trap), `run_episode` early stop reverted,
+`reuse_candidate_cache=True` removed from the benchmark. Built `faultline/benchmark/{golds,instances,runner,__main__}.py`:
+rooms9 golds (default, mixed_star, blocked_two_path, each with and without a trap; `long_corridor` excluded, its fixed chain is
+infeasible), deterministic instance generation with a funnel, the per-instance runner (gates, AutoSpec, random-operator baseline,
+graph baselines, metrics, JSON with git and protocol hash) and a CLI (`funnel`, `run`). T9 passes: the five old cases are valid
+coarsenings of feasible golds and same-family mutations apply. Funnel on rooms9, one instance seed: 57 valid; route pruning has
+no site (no gold with a weak-by-design edge). Not done: rooms100 golds, M5 golds, PPO pilot timings, grid sizing, process pool.

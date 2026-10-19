@@ -10,7 +10,6 @@ from faultline.faults.catalogue import (
     overwide_safety_case,
     unreachable_start_case,
 )
-from faultline.faults.environments import HiddenHazardRooms9
 from faultline.faults.injectors import (
     inject_goal_trap,
     inject_missing_alternative_path,
@@ -26,7 +25,6 @@ __all__ = [
     "FaultCase",
     "FaultSummary",
     "FaultType",
-    "HiddenHazardRooms9",
     "all_fault_cases",
     "format_summary",
     "goal_trap_case",

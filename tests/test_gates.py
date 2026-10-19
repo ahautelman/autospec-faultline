@@ -136,11 +136,13 @@ def test_screen_with_learning_calls_learner_per_seed():
 
 def test_funnel_counts_and_reasons():
     f = Funnel()
+    for _ in range(2):
+        f.record(FaultKind.GOAL_INFLATION, Stage.VALID)
     f.record(FaultKind.GOAL_INFLATION, Stage.ACCEPTED)
     f.record(FaultKind.GOAL_INFLATION, Stage.INEFFECTIVE, "harmless", "a")
     f.record(FaultKind.DEAD_START, Stage.NOT_APPLICABLE, "no site", "b")
     out = f.to_dict()
-    assert out["counts"]["goal_inflation"] == {"accepted": 1, "ineffective": 1, "generated": 2}
+    assert out["counts"]["goal_inflation"] == {"valid": 2, "accepted": 1, "ineffective": 1, "generated": 2}
     assert f.generated(FaultKind.DEAD_START) == 1
     assert [r["reason"] for r in out["rejections"]] == ["harmless", "no site"]
 

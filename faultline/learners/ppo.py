@@ -319,10 +319,6 @@ def run_episode(
         )
         safe = safe and step_safe
         reached = bool(info["is_success"])
-        # A reach-avoid rollout ends at the first safety violation. Hidden-hazard
-        # environments keep the training episode alive while the faulty spec
-        # permits the hazard, but evaluation must stop at the unsafe state so
-        # AvoidRefine's rollout tail stays local to it.
-        if terminated or truncated or not step_safe:
+        if terminated or truncated:
             break
     return Rollout(tuple(states), reached=reached, safe=safe, final_safe=step_safe)

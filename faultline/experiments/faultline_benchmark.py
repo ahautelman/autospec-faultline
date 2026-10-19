@@ -170,7 +170,6 @@ def run_fault_case(
         budget=settings.budget,
         n_rollouts=settings.n_rollouts,
         avoid_tail_length=settings.avoid_tail_length,
-        reuse_candidate_cache=True,
         seed=seed,
     )
 

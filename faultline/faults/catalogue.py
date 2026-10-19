@@ -12,9 +12,9 @@ from dataclasses import dataclass
 from typing import Callable
 
 from faultline.envs import Rooms9, RoomsLayout
+from faultline.envs.rooms.env import RoomsEnv
 from faultline.envs.layout import ROOM_SIZE, ROOMS_PER_SIDE, DoorInterval, WallKey
 from faultline.faults.base import FaultCase
-from faultline.faults.environments import HiddenHazardRooms9
 from faultline.faults.injectors import (
     inject_goal_trap,
     inject_missing_alternative_path,
@@ -31,7 +31,7 @@ class FaultBenchmarkCase:
     """One injected fault together with the matching evaluation environment."""
 
     fault: FaultCase
-    make_env: Callable[[], Rooms9]
+    make_env: Callable[[], RoomsEnv]
 
 
 def _single_edge(
@@ -99,9 +99,9 @@ def overwide_safety_case(severity: float = 1.0) -> FaultBenchmarkCase:
     central hidden hazard, while a short safe detour exists above or below it.
 
     The correct specification excludes the hazard.  Fault injection broadens the
-    safe predicate so the hazard is logically allowed.  ``HiddenHazardRooms9``
-    then exposes unsafe trajectory tails without giving PPO the full logical
-    violation penalty until AutoSpec refines the safe predicate.
+    safe predicate so the hazard is logically allowed.  The hazard is a physical
+    absorbing trap (``unsafe_region``), identical for gold and faulty, so
+    AvoidRefine sees episodes that end in it.
     """
 
     start = Box((1.0, 3.25), (2.0, 4.75))
@@ -127,10 +127,10 @@ def overwide_safety_case(severity: float = 1.0) -> FaultBenchmarkCase:
 
     return FaultBenchmarkCase(
         fault=fault,
-        make_env=lambda: HiddenHazardRooms9(
+        make_env=lambda: RoomsEnv(
             layout=RoomsLayout(doors={}),
             max_steps=20,
-            hidden_unsafe_region=hazard,
+            unsafe_region=hazard,
         ),
     )
 

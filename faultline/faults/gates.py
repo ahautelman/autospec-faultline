@@ -237,6 +237,7 @@ class Stage(str, Enum):
     """Where a generated instance leaves the funnel."""
 
     NOT_APPLICABLE = "not_applicable"
+    VALID = "valid"
     INVALID = "invalid"
     INEFFECTIVE = "ineffective"
     UNOBSERVABLE = "unobservable"
@@ -248,7 +249,7 @@ class Funnel:
     """Counts per family of every instance, with the reasons for each rejection.
 
     How:
-        ``record`` files one attempt under its terminal stage. ``accepted`` instances are
+        ``record`` files one attempt: at generation as ``not_applicable``, ``invalid`` or ``valid``, then a valid one again under its gate outcome. ``accepted`` instances are
         valid, effective and observable; ``unobservable`` instances are valid and
         effective and are reported as their own stratum, not discarded.
     """
@@ -259,19 +260,26 @@ class Funnel:
     def record(self, kind: FaultKind, stage: Stage, reason: str = "", instance: str = "") -> None:
         """File one attempt."""
         self.counts.setdefault(kind.value, Counter())[stage.value] += 1
-        if stage is not Stage.ACCEPTED:
+        if stage not in (Stage.ACCEPTED, Stage.VALID):
             self.reasons.append(
                 {"kind": kind.value, "stage": stage.value, "instance": instance, "reason": reason}
             )
 
     def generated(self, kind: FaultKind) -> int:
-        """Return the number of attempts for a family."""
-        return sum(self.counts.get(kind.value, Counter()).values())
+        """Return the number of generation attempts for a family.
+
+        Gate stages (ineffective, unobservable, accepted) refine ``valid`` and are not added.
+        """
+        return self._attempts(self.counts.get(kind.value, Counter()))
+
+    @staticmethod
+    def _attempts(counter: Counter) -> int:
+        return sum(counter[s.value] for s in (Stage.NOT_APPLICABLE, Stage.INVALID, Stage.VALID))
 
     def to_dict(self) -> dict[str, Any]:
         """Return a JSON-serialisable summary."""
         return {
-            "counts": {k: dict(v) | {"generated": sum(v.values())} for k, v in self.counts.items()},
+            "counts": {k: dict(v) | {"generated": self._attempts(v)} for k, v in self.counts.items()},
             "rejections": list(self.reasons),
         }
 
